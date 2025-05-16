@@ -1,0 +1,28 @@
+# Requirements based on Windows OS and Carla 0.9.10.1 release
+ 
+# using python 3.7 version -> to create venv use command: ´py -3.7 -m venv myenv´
+# upgrade pip -> pip install --upgrade pip
+
+setuptools
+wheel
+numpy
+torch
+torchvision
+pygame
+albumentations
+matplotlib
+prefetch_generator 
+tqdm
+thop
+seaborn
+pandas
+pytorch-lightning
+yacs
+opencv-python-headless
+opencv-contrib-python
+pybind11
+onnxruntime
+onnxruntime-gpu
+onnx
+cuda-python
+keyboard

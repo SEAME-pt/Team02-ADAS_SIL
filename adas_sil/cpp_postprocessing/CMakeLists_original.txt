@@ -1,0 +1,96 @@
+cmake_minimum_required(VERSION 3.10)
+project(LaneProcessing LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Find packages
+set(OpenCV_DIR "C:/Users/manue/opencv/build")
+find_package(OpenCV REQUIRED)
+
+# pybind11 (from pip installation)
+set(pybind11_DIR "C:/Users/manue/Documents/SEA_ME/LaneDetection/myenv/Lib/site-packages/pybind11/share/cmake/pybind11")
+find_package(pybind11 REQUIRED)
+
+
+# Lane processor library
+add_library(lane_processor STATIC
+    LaneDetector.cpp
+)
+
+target_link_libraries(lane_processor
+    ${OpenCV_LIBS}
+)
+
+# Create Python bindings
+pybind11_add_module(lane_processor_py SHARED
+    PythonBinding.cpp 
+)
+
+target_include_directories(lane_processor_py PUBLIC
+${OpenCV_INCLUDE_DIRS})
+
+# Link against the lane_processor library
+target_link_libraries(lane_processor_py PRIVATE
+    lane_processor
+    ${OpenCV_LIBS}
+)
+
+# Add IPM class and test
+add_library(ipm STATIC
+    IPM.cpp)
+
+target_link_libraries(ipm
+    ${OpenCV_LIBS})
+
+# Add Python binding
+pybind11_add_module(ipm_module
+    PythonBinding_IPM.cpp)
+
+target_link_libraries(ipm_module PRIVATE
+    ipm ${OpenCV_LIBS})
+
+message(STATUS "OpenCV_BIN_DIR: ${OpenCV_BIN_DIR}")
+
+# Try to find the OpenCV bin directory
+if(NOT OpenCV_BIN_DIR)
+    if(EXISTS "${OpenCV_DIR}/x64/vc16/bin")
+        set(OpenCV_BIN_DIR "${OpenCV_DIR}/x64/vc16/bin")
+    elseif(EXISTS "${OpenCV_DIR}/bin")
+        set(OpenCV_BIN_DIR "${OpenCV_DIR}/bin")
+    endif()
+endif()
+
+# Copy OpenCV DLLs to output directory
+if(OpenCV_BIN_DIR)
+    message(STATUS "Will copy OpenCV DLLs from: ${OpenCV_BIN_DIR}")
+    file(GLOB OpenCV_DLLS "${OpenCV_BIN_DIR}/opencv_*.dll")
+    foreach(OpenCV_DLL ${OpenCV_DLLS})
+        add_custom_command(TARGET lane_processor_py POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${OpenCV_DLL}"
+                "$<TARGET_FILE_DIR:lane_processor_py>")
+    endforeach()
+else()
+    message(WARNING "Could not find OpenCV bin directory. You may need to manually copy DLLs.")
+endif()
+
+
+# Needed for importing modules from the build directory
+set(INIT_PY "${CMAKE_CURRENT_BINARY_DIR}/__init__.py")
+if(NOT EXISTS ${INIT_PY})
+    file(WRITE ${INIT_PY} "")
+endif()
+
+function(setup_python_module MODULE_NAME)
+    add_custom_command(TARGET ${MODULE_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+                $<TARGET_FILE_DIR:${MODULE_NAME}>/$<TARGET_FILE_NAME:${MODULE_NAME}>
+                ${CMAKE_CURRENT_BINARY_DIR}/$<TARGET_FILE_NAME:${MODULE_NAME}>
+    )
+endfunction()
+
+setup_python_module(lane_processor_py)
+setup_python_module(ipm_module)
+
+

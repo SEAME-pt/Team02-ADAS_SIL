@@ -1,0 +1,166 @@
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+#include <pybind11/numpy.h>
+#include <opencv2/opencv.hpp>
+#include "LaneDetectorIPM.hpp"
+
+namespace py = pybind11;
+
+// Helper function to convert numpy array to cv::Mat (reuse from your existing code)
+cv::Mat numpy_to_mat(py::array_t<uint8_t>& array) {
+    py::buffer_info info = array.request();
+    
+    int rows = static_cast<int>(info.shape[0]);
+    int cols = static_cast<int>(info.shape[1]);
+    int type = CV_8UC3;  // Assuming BGR image
+    
+    if (info.ndim == 2) {
+        type = CV_8UC1;  // Grayscale image
+    }
+    
+    cv::Mat image(rows, cols, type, info.ptr);
+    return image.clone();  // Clone to ensure we own the data
+}
+
+// Helper function to convert cv::Mat to numpy array (reuse from your existing code)
+py::array_t<uint8_t> mat_to_numpy(const cv::Mat& image) {
+    py::array_t<uint8_t> array;
+    
+    if (image.channels() == 1) {
+        array = py::array_t<uint8_t>({image.rows, image.cols});
+    } else {
+        array = py::array_t<uint8_t>({image.rows, image.cols, image.channels()});
+    }
+    
+    auto buffer = array.request();
+    uint8_t* ptr = static_cast<uint8_t*>(buffer.ptr);
+    std::memcpy(ptr, image.data, image.total() * image.elemSize());
+    
+    return array;
+}
+
+// Helper function to convert cv::Point to Python tuple
+py::tuple point_to_tuple(const cv::Point& p) {
+    return py::make_tuple(p.x, p.y);
+}
+
+PYBIND11_MODULE(lane_detector_py, m) {
+    m.doc() = "Lane detector module with IPM support";
+    
+    // Add module-level constants
+    m.attr("WIDTH") = WIDTH;
+    m.attr("HEIGHT") = HEIGHT;
+    
+    // Bind LaneDetector class
+    py::class_<LaneDetector>(m, "LaneProcessor")
+        .def(py::init<>())
+        .def("preProcess", [](LaneDetector& self, py::array_t<uint8_t>& frame_array) {
+            cv::Mat frame = numpy_to_mat(frame_array);
+            cv::Mat result = self.preProcess(frame);
+            return mat_to_numpy(result);
+        })
+        .def("postProcess", [](LaneDetector& self, py::array_t<uint8_t>& frame_array) {
+            cv::Mat frame = numpy_to_mat(frame_array);
+            self.postProcess(frame);
+            return mat_to_numpy(frame);
+        })
+        .def("visualizeBothViews", [](LaneDetector& self, py::array_t<uint8_t>& frame_array) {
+            cv::Mat frame = numpy_to_mat(frame_array);
+            self.visualizeBothViews(frame);
+            return mat_to_numpy(frame);
+        })
+        // .def("detect", [](LaneDetector& self, py::array_t<uint8_t>& frame_array) {
+        //     cv::Mat frame = numpy_to_mat(frame_array);
+        //     self.detect(frame); // Make sure this method exists or add it
+        //     return mat_to_numpy(frame);
+        // })
+        .def("setOutputData", [](LaneDetector& self, py::array_t<float>& output_array) {
+            py::buffer_info info = output_array.request();
+            float* ptr = static_cast<float*>(info.ptr);
+            size_t expected_size = 2 * HEIGHT * WIDTH * sizeof(float);
+            self.setOutputData(ptr, expected_size);
+        })
+        .def_property_readonly("left_coeffs", [](const LaneDetector& self) -> py::object {
+            const cv::Mat& coeffs = self.getLeftCoeffs();
+            if (coeffs.empty()) {
+                return py::none();
+            }
+            
+            py::list coeff_list;
+            for (int i = 0; i < coeffs.rows; i++) {
+                coeff_list.append(coeffs.at<double>(i));
+            }
+            return coeff_list;
+        })
+        
+        // Fix for right_coeffs
+        .def_property_readonly("right_coeffs", [](const LaneDetector& self) -> py::object {
+            const cv::Mat& coeffs = self.getRightCoeffs();
+            if (coeffs.empty()) {
+                return py::none();
+            }
+            
+            py::list coeff_list;
+            for (int i = 0; i < coeffs.rows; i++) {
+                coeff_list.append(coeffs.at<double>(i));
+            }
+            return coeff_list;
+        })
+        
+        // Fix for midCoeffs
+        .def_property_readonly("midCoeffs", [](const LaneDetector& self) -> py::object {
+            cv::Mat coeffs = self.getMidCoeffs();
+            if (coeffs.empty()) {
+                return py::none();
+            }
+            
+            py::list coeff_list;
+            for (int i = 0; i < coeffs.rows; i++) {
+                coeff_list.append(coeffs.at<double>(i));
+            }
+            return coeff_list;
+        }, "Mid-lane polynomial coefficients (3rd degree)")
+        .def_property_readonly("left_points", [](const LaneDetector& self) {
+            std::vector<py::tuple> points;
+            const std::vector<cv::Point>& leftPoints = self.getLeftPoints();
+            for (const auto& pt : leftPoints) {
+                points.push_back(point_to_tuple(pt));
+            }
+            return points;
+        })
+        .def_property_readonly("right_points", [](const LaneDetector& self) {
+            std::vector<py::tuple> points;
+            const std::vector<cv::Point>& rightPoints = self.getRightPoints();
+            for (const auto& pt : rightPoints) {
+                points.push_back(point_to_tuple(pt));
+            }
+            return points;
+        })
+        .def_property_readonly("all_lane_points", [](const LaneDetector& self) {
+            std::vector<py::tuple> points;
+            const std::vector<cv::Point>& Points = self.getAllLanePoints();
+            for (const auto& pt : Points) {
+                points.push_back(point_to_tuple(pt));
+            }
+            return points;
+        })
+        .def_property_readonly("bev_image", [](const LaneDetector& self) {
+            cv::Mat bev = self.getBevImage();
+            if (bev.empty()) {
+                throw std::runtime_error("BEV image not available");
+            }
+            return mat_to_numpy(bev);
+        })
+        .def_property_readonly("polylines_viz", [](const LaneDetector& self) {
+            cv::Mat allPolylinesViz = self.getPolyLines();
+            if (allPolylinesViz.empty()) {
+                throw std::runtime_error("Lane polylines visualization not available yet. Call createLanesIPM first.");
+            }
+            return mat_to_numpy(allPolylinesViz);
+        }, "Visualization of all lane polylines before merging")
+
+        .def_property_readonly("lane_Error", [](const LaneDetector& self) {
+            const float laneError = self.getLaneError();
+            return laneError;
+        }, "Lane error value");
+}

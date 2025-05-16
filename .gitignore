@@ -1,0 +1,5 @@
+adas_sil/cpp_postprocessing/build
+adas_sil/cpp_postprocessing/vcpkg/*
+build/*
+adas_sil.egg-info/*
+models/*
