@@ -1,3 +1,4 @@
+import dis
 import sys
 import os
 import numpy as np
@@ -27,6 +28,7 @@ from adas_sil.control.CameraManager import CameraManager
 from adas_sil.control.vehicle_controller.pid_controller import PIDController
 from adas_sil.control.vehicle_controller.mpc_controller import MPCController
 from adas_sil.control.display import Display
+from adas_sil.perception.Detection import Detection
 
 class Controller:
     def __init__(self, vehicle, world):
@@ -37,90 +39,36 @@ class Controller:
         self.autonomous_mode = False
         self.control_mode = "PID"  # "PID" or "MPC"
         self._steer_cache = 0.0
+        self.autonomous_mode = False
+        self._previous_t_state = False
 
-
-
-        self.camera_manager = CameraManager(vehicle, world)
-        self.display_manager = Display(1280, 960)
-        self.pid_controller = PIDController()
-
-        # Initialize controllers
         try:
-            # Initialize PID parameters: Kp, Ki, Kd, base_speed, dt
-            self.pid_controller = pid_controller_py.PidController()
-            self.pid_controller.init(15.0, 0.01, 5.0, 0.5, 0.02)
-            print("PID controller initialized")
+            self.display_manager = Display(1280, 960)
+            self.camera_manager = CameraManager(vehicle, world, self.display_manager)
 
-            # Initialize MPC controller
-            # self.mpc_controller = mpc_controller_py.MPController()
-            # Q matrix (state costs)
-            Q = np.eye(4)
-            Q[0,0] = 100.0  # x position cost 
-            Q[1,1] = 100.0  # y position cost
-            Q[2,2] = 10.0   # heading cost
-            Q[3,3] = 1.0    # velocity cost
-            
-            # R matrix (control input costs)
-            R = np.eye(2)
-            R[0,0] = 0.1    # throttle cost
-            R[1,1] = 10.0   # steering cost
-            
-            # Initialize parameters: horizon, wheelbase, timestep, Q, R, Qf
-            # self.mpc_controller.init(10, 2.9, 0.1, Q, R, Q*5.0)  # Qf is terminal cost (higher)
-            # print("MPC controller initialized")
+            self.pid_controller = PIDController(15.0, 0.01, 5.0, 0.5, 0.02)
 
-            self.autonomous_mode = False
-            self._previous_t_state = False
         except Exception as e:
             print(f"Error initializing PID controller: {e}")
 
-        try:
-            # Initialize detector
-            from adas_sil.perception.Detection import Detection
-
-            # try:
-            #     self.ipm = ipm_module.IPM()
-            #     # Create a new pygame surface for bird's eye view
-            #     self.bev_surface = None
-            #     print("IPM module initialized for bird's eye view")
-            # except Exception as e:
-            #     print(f"Error initializing IPM module: {e}")
-            
+        try:           
             self.detector = Detection()
-            # Initialize pygame display for visualization
-            self.display = pygame.display.set_mode((1280, 960))
-            pygame.display.set_caption("CARLA Camera Feed")
-            self.rgb_surface = None
-            self.lane_surface = None
-            
-            # Create output directories
-            self.output_dir = 'carla_recordings'
-            os.makedirs(f'{self.output_dir}/rgb', exist_ok=True)
-            os.makedirs(f'{self.output_dir}/lanes', exist_ok=True)
-            
-            self.record_video = False
-            self.video_dir = os.path.join(self.output_dir, 'videos')
-            os.makedirs(self.video_dir, exist_ok=True)
-            self.video_filename = os.path.join(self.video_dir, f'drive_{time.strftime("%Y%m%d-%H%M%S")}.mp4')
-            self.video_fps = 20.0
-            self.video_writer = None
-
-            # Set up cameras and start recording
-            self.setup_cameras()
-            # self.detector.load_model(self.rgb_detcam)
-                    # Set up listeners
-            self.rgb_cam.listen(self.process_rgb_image)
-            self.sem_cam.listen(self.process_semantic_image)
-            # self.rgb_detcam.listen(self.process_rgb_with_detection)
-            print("Controller initialized - recording started")
         except Exception as e:
-            print(f"Error initializing controller: {e}")
-            pygame.quit()
-            if self.rgb_cam:
-                self.rgb_cam.destroy()
-            if self.sem_cam:
-                self.sem_cam.destroy()
+            print(f"Error initializing detector: {e}")
             raise
+
+        # Video recording
+            # # Create output directories
+            # self.output_dir = 'carla_recordings'
+            # os.makedirs(f'{self.output_dir}/rgb', exist_ok=True)
+            # os.makedirs(f'{self.output_dir}/lanes', exist_ok=True)
+            
+            # self.record_video = False
+            # self.video_dir = os.path.join(self.output_dir, 'videos')
+            # os.makedirs(self.video_dir, exist_ok=True)
+            # self.video_filename = os.path.join(self.video_dir, f'drive_{time.strftime("%Y%m%d-%H%M%S")}.mp4')
+            # self.video_fps = 20.0
+            # self.video_writer = None
 
 
     def toggle_recording(self):

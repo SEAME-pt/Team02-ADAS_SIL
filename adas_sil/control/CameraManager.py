@@ -18,16 +18,20 @@ sys.path.append(carla_egg)
 import carla
 
 class CameraManager:
-    def __init__(self, world, vehicle):
+    def __init__(self, world, vehicle, display):
         self.world = world
         self.vehicle = vehicle
         self.rgb_cam = None
         self.sem_cam = None
+        self.display = display
 
         self.setup_cameras()
 
+        self.rgb_cam.listen(self.process_rgb_image)
+        self.sem_cam.listen(self.process_semantic_image)
 
-
+        # self.detector.load_model(self.rgb_detcam)
+        # self.rgb_detcam.listen(self.process_rgb_with_detection)
 
     def setup_cameras(self):
         # RGB camera setup
