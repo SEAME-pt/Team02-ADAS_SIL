@@ -15,11 +15,10 @@ sys.path.append(carla_egg)
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
-    import cpp_postprocessing.build.pid_controller_py as pid_controller_py
-    # import cpp_postprocessing.build.mpc_controller_py as mpc_controller_py
-    print("Successfully imported controller modules")
+    import cpp_postprocessing.build.ipm_module as ipm_module
+    print("Successfully imported IPM_Module")
 except ImportError as e:
-    print(f"Failed to import controller modules: {e}")
+    print(f"Failed to import IPM_Module: {e}")
 
 import carla
 
@@ -33,59 +32,21 @@ class Controller:
         self.sem_cam = None
         self._steer_cache = 0.0
 
-        # Track vehicle state for MPC
-        self.current_speed = 0.0
-        self.current_position = carla.Location(0, 0, 0)
-        self.current_heading = 0.0
-        
-        # Controller mode selection
-        self.control_mode = "PID"  # "PID" or "MPC"
-
-        # Initialize controllers
-        try:
-            # Initialize PID parameters: Kp, Ki, Kd, base_speed, dt
-            self.pid_controller = pid_controller_py.PidController()
-            self.pid_controller.init(15.0, 0.01, 5.0, 0.5, 0.02)
-            print("PID controller initialized")
-
-            # Initialize MPC controller
-            # self.mpc_controller = mpc_controller_py.MPController()
-            # Q matrix (state costs)
-            Q = np.eye(4)
-            Q[0,0] = 100.0  # x position cost 
-            Q[1,1] = 100.0  # y position cost
-            Q[2,2] = 10.0   # heading cost
-            Q[3,3] = 1.0    # velocity cost
-            
-            # R matrix (control input costs)
-            R = np.eye(2)
-            R[0,0] = 0.1    # throttle cost
-            R[1,1] = 10.0   # steering cost
-            
-            # Initialize parameters: horizon, wheelbase, timestep, Q, R, Qf
-            # self.mpc_controller.init(10, 2.9, 0.1, Q, R, Q*5.0)  # Qf is terminal cost (higher)
-            # print("MPC controller initialized")
-
-            self.autonomous_mode = False
-            self._previous_t_state = False
-        except Exception as e:
-            print(f"Error initializing PID controller: {e}")
-
         try:
             # Initialize detector
             from adas_sil.perception.Detection import Detection
 
-            # try:
-            #     self.ipm = ipm_module.IPM()
-            #     # Create a new pygame surface for bird's eye view
-            #     self.bev_surface = None
-            #     print("IPM module initialized for bird's eye view")
-            # except Exception as e:
-            #     print(f"Error initializing IPM module: {e}")
+            try:
+                # self.ipm = ipm_module.IPM()
+                # Create a new pygame surface for bird's eye view
+                self.bev_surface = None
+                print("IPM module initialized for bird's eye view")
+            except Exception as e:
+                print(f"Error initializing IPM module: {e}")
             
             self.detector = Detection()
             # Initialize pygame display for visualization
-            self.display = pygame.display.set_mode((1280, 960))
+            self.display = pygame.display.set_mode((1280, 960))  # Wide enough for two images side by side
             pygame.display.set_caption("CARLA Camera Feed")
             self.rgb_surface = None
             self.lane_surface = None
@@ -144,26 +105,76 @@ class Controller:
         #Cam to view detection 
         # self.rgb_detcam = self.world.spawn_actor(rgb_bp, rgb_transform, attach_to=self.vehicle, attachment_type=carla.AttachmentType.Rigid)
 
-    def visualize_ipm_region(self, image):
-        """Draw the source region that's being transformed to bird's eye view"""
-        if not hasattr(self, 'ipm'):
-            return image
-        
-        # Get a copy of the image to draw on
-        vis_image = image.copy()
-        
-        # Get the four source points from the IPM
-        source_points = self.ipm.orig_points
-        
-        # Draw the region on the original image
-        points_np = np.array(source_points, dtype=np.int32).reshape((-1, 1, 2))
-        cv2.polylines(vis_image, [points_np], True, (0, 0, 255), 2)
-        
-        # Label the region
-        cv2.putText(vis_image, "IPM Region", (points_np[0][0][0], points_np[0][0][1] - 10), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-        
-        return vis_image
+        try:
+            # Get camera parameters
+            camera_height = 1.5  # rgb_location.z
+            camera_pitch = 15.0  # Negate rgb_rotation.pitch as IPM uses opposite convention
+            h_fov = rgb_bp.get_attribute("fov").as_float()
+            
+            # Get image dimensions as integers
+            img_width = rgb_bp.get_attribute('image_size_x').as_int()
+            img_height = rgb_bp.get_attribute('image_size_y').as_int()
+            
+            # Calculate vertical FOV
+            v_fov = 2 * np.degrees(np.arctan( (img_height/img_width) * np.tan( np.radians(h_fov)/2 ) ))
+            
+            # Create size tuple
+            img_size = (img_width, img_height)
+            bev_size = (384, 384)   # Square bird's eye view
+            
+            self.ipm.initialize(img_size, bev_size)
+            
+            # Calibrate for CARLA camera parameters
+            self.ipm.calibrate_from_camera(
+                camera_height=camera_height,
+                camera_pitch=camera_pitch,
+                horizontal_fov=h_fov,
+                vertical_fov=v_fov,
+                near_distance=1.5,   # 3 meters from camera
+                far_distance=15.0,   # 20 meters from camera
+                lane_width=7       # Standard lane width
+            )
+
+            # try:
+            #     source_points = self.ipm.orig_points
+            #     print("\n==== IPM TRAPEZOID CORNERS ====")
+            #     print(f"Top-left     (far left):     ({source_points[0][0]:.1f}, {source_points[0][1]:.1f})  → ({-3.5/2:.1f}m, {20:.1f}m)")
+            #     print(f"Top-right    (far right):    ({source_points[1][0]:.1f}, {source_points[1][1]:.1f})  → ({3.5/2:.1f}m, {20:.1f}m)")
+            #     print(f"Bottom-right (near right):   ({source_points[2][0]:.1f}, {source_points[2][1]:.1f})  → ({3.5/2:.1f}m, {3:.1f}m)")
+            #     print(f"Bottom-left  (near left):    ({source_points[3][0]:.1f}, {source_points[3][1]:.1f})  → ({-3.5/2:.1f}m, {3:.1f}m)")
+            #     print("===============================\n")
+            # except Exception as e:
+            #     print(f"Error printing trapezoid points: {e}")
+            
+            print("IPM calibrated with camera parameters")
+        except Exception as e:
+            print(f"Error calibrating IPM: {e}")
+    
+    def create_birds_eye_view(self, image):
+        """Create bird's eye view from camera image"""
+        try:
+            # Check if we have a valid image and IPM is initialized
+            if image is None or not hasattr(self, 'ipm'):
+                return None
+                
+            # Convert image to numpy array if it's a CARLA image
+            if hasattr(image, 'raw_data'):
+                array = np.frombuffer(image.raw_data, dtype=np.uint8)
+                array = array.reshape((image.height, image.width, 4))
+                array = array[:, :, :3]  # Remove alpha channel
+            else:
+                # Assume it's already a numpy array
+                array = image
+                
+            # Apply IPM transformation to get bird's eye view
+            bev_img = self.ipm.apply_ipm(array)
+            
+            # Return the transformed image
+            return bev_img
+            
+        except Exception as e:
+            print(f"Error creating bird's eye view: {e}")
+            return None
 
     def process_rgb_image(self, image):
         # Save the image to disk
@@ -288,6 +299,52 @@ class Controller:
         #     cv2.imwrite(f'{self.output_dir}/lanes/lane_{image.frame:06d}.png', 
         #             cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
 
+    def transform_lane_points(self, points, original_size):
+        """Transform lane points to bird's eye view perspective"""
+        try:
+            if not points or not hasattr(self, 'ipm'):
+                return []
+                
+            # Get the perspective transformation matrix
+            transform_matrix = self.ipm.perspective_matrix
+                
+            # Convert points to the format expected by perspectiveTransform
+            # Convert to numpy float32 array with shape (N, 1, 2)
+            points_array = np.array(points, dtype=np.float32).reshape(-1, 1, 2)
+                
+            # Apply the perspective transformation to points directly
+            transformed_points = cv2.perspectiveTransform(points_array, transform_matrix)
+                
+            # Reshape back to a simple list of points
+            return transformed_points.reshape(-1, 2).tolist()
+                
+        except Exception as e:
+            print(f"Error transforming lane points: {e}")
+            import traceback
+            traceback.print_exc()
+            return points  # Return original points on error
+
+    def visualize_ipm_region(self, image):
+        """Draw the source region that's being transformed to bird's eye view"""
+        if not hasattr(self, 'ipm'):
+            return image
+        
+        # Get a copy of the image to draw on
+        vis_image = image.copy()
+        
+        # Get the four source points from the IPM
+        source_points = self.ipm.orig_points
+        
+        # Draw the region on the original image
+        points_np = np.array(source_points, dtype=np.int32).reshape((-1, 1, 2))
+        cv2.polylines(vis_image, [points_np], True, (0, 0, 255), 2)
+        
+        # Label the region
+        cv2.putText(vis_image, "IPM Region", (points_np[0][0][0], points_np[0][0][1] - 10), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        
+        return vis_image
+    
     def process_semantic_for_detection(self, original_image, semantic_image):
 
         start_time = time.time()
@@ -299,41 +356,20 @@ class Controller:
         
         # Convert CARLA original image to OpenCV format  
         original_frame = self.detector.convert_Carla_image(original_image)
-
+        
         # Process the mask through lane detector
-        lane_img, left_points, right_points, bev_img = self.detector.process_segmentation_mask(lane_mask, original_frame)
-        # If we got a valid BEV image, convert and display it
-        if bev_img is not None and isinstance(bev_img, np.ndarray) and bev_img.size > 0:
-            # Get the middle coefficients if available
-            mid_coeffs = None
-            if hasattr(self.detector.lane_detector, 'midCoeffs'):
-                mid_coeffs = self.detector.lane_detector.midCoeffs
-                if mid_coeffs is not None and len(mid_coeffs) >= 4:
-                    # Convert from cv::Mat to Python list if needed
-                    if hasattr(mid_coeffs, 'tolist'): 
-                        mid_coeffs = mid_coeffs.tolist()
-                        
-                    # Draw the middle lane polynomial
-                    bev_img = self.draw_lane_polynomial(bev_img, mid_coeffs, (0, 255, 255), 3)
-                    
-                    # Add text label for middle lane
-                    cv2.putText(bev_img, "Mid Lane", (10, 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-            
-            # Convert to RGB for pygame
-            bev_rgb = cv2.cvtColor(bev_img, cv2.COLOR_BGR2RGB)
-            self.bev_surface = pygame.surfarray.make_surface(bev_rgb.swapaxes(0, 1))
-            # print("BEV image successfully received and converted to surface")
-        # else:
-            # print("BEV image not available from lane detector")
+        lane_img, left_points, right_points = self.detector.process_segmentation_mask(lane_mask, original_frame)
+
         # Transform only the lane points to bird's eye view
             # Get all the lane points if available
-        # if hasattr(self.detector.lane_detector, 'bev_image'):
-        #         bev_img = self.detector.lane_detector.bev_image
-        #         if bev_img is not None:
-        #             # Convert to RGB for pygame
-        #             bev_rgb = cv2.cvtColor(bev_img, cv2.COLOR_BGR2RGB)
-        #             self.bev_surface = pygame.surfarray.make_surface(bev_rgb.swapaxes(0, 1))
+        all_points = self.detector.lane_detector.all_lane_points if hasattr(self.detector.lane_detector, 'all_lane_points') else []
+        
+        # Create bird's eye view of lane points
+        bev_img = self.create_lane_points_bev(all_points, left_points, right_points)
+        
+        # Convert to RGB for pygame
+        bev_rgb = cv2.cvtColor(bev_img, cv2.COLOR_BGR2RGB)
+        self.bev_surface = pygame.surfarray.make_surface(bev_rgb.swapaxes(0, 1))
 
         # Convert BGR (OpenCV) to RGB (Pygame)
         lane_img = cv2.cvtColor(lane_img, cv2.COLOR_BGR2RGB)
@@ -341,60 +377,133 @@ class Controller:
         # Create pygame surfaces
         self.lane_surface = pygame.surfarray.make_surface(lane_img.swapaxes(0, 1))
         
-        # Display polylines visualization if available
-        if hasattr(self.detector, 'polylines_viz') and self.detector.polylines_viz is not None:
-            polylines_rgb = cv2.cvtColor(self.detector.polylines_viz, cv2.COLOR_BGR2RGB)
-            self.polylines_surface = pygame.surfarray.make_surface(polylines_rgb.swapaxes(0, 1))
-            # print("Polylines visualization available")
-
         process_time = time.time() - start_time
         if process_time > 0.01:  # Log only if processing takes more than 100ms
             print(f"Semantic processing took {process_time:.3f} seconds")
 
         return lane_img
 
-    def draw_lane_polynomial(self, bev_img, coeffs, color=(0, 255, 255), thickness=2):
-        """
-        Draw polynomial curve on bird's eye view image
+    def create_lane_points_bev(self, all_points=None, left_points=None, right_points=None):
+        """Create a bird's eye view visualization with 0.1s decision points"""
+        # Create a blank image for bird's eye view
+        bev_img = np.zeros((384, 384, 3), dtype=np.uint8)
         
-        Args:
-            bev_img: Bird's eye view image
-            coeffs: List of polynomial coefficients [a, b, c, d] for ax^3 + bx^2 + cx + d
-            color: Line color in BGR format
-            thickness: Line thickness
-        """
-        if coeffs is None or len(coeffs) < 4 or bev_img is None:
-            return bev_img
-            
-        # Get image dimensions
-        h, w = bev_img.shape[:2]
+        # Draw a grid for reference
+        grid_size = 50
+        for i in range(0, 384, grid_size):
+            cv2.line(bev_img, (i, 0), (i, 384), (50, 50, 50), 1)  # Vertical lines
+            cv2.line(bev_img, (0, i), (384, i), (50, 50, 50), 1)  # Horizontal lines
         
-        # Create points for the curve
-        points = []
-        for y in range(0, h, 5):  # Plot every 5 pixels
-            # Calculate x value using polynomial: ax^3 + bx^2 + cx + d
-            # Note: In BEV, y increases from top to bottom, so we invert the coordinates
-            # for the polynomial if needed
-            normalized_y = y / h  # Normalize to 0-1 range
-            
-            # Calculate x using polynomial coefficients
-            # Adjust this calculation based on how your coefficients are defined
-            x = int(coeffs[0] * y**3 + coeffs[1] * y**2 + coeffs[2] * y + coeffs[3])
-            
-            # Only add point if it's within image bounds
-            if 0 <= x < w:
-                points.append((x, y))
+        # Draw vehicle indicator at the bottom center
+        cv2.circle(bev_img, (192, 350), 8, (0, 200, 255), -1)  # Orange circle
+        cv2.fillPoly(bev_img, [np.array([(177, 350), (207, 350), (192, 320)])], (0, 200, 255))  # Triangle
         
-        # Draw the curve if we have enough points
-        # if len(points) >= 2:
-        #     # Convert to numpy array for OpenCV
-        #     pts = np.array(points, np.int32).reshape((-1, 1, 2))
-        #     cv2.polylines(bev_img, [pts], False, color, thickness)
+        # Transform lane points
+        transformed_left = []
+        transformed_right = []
+
+        if left_points:
+            transformed_left = self.transform_lane_points(left_points, (384, 192))
+            # Draw all left lane points (thin red)
+            for pt in transformed_left:
+                x, y = int(pt[0]), int(pt[1])
+                if 0 <= x < 384 and 0 <= y < 384:
+                    cv2.circle(bev_img, (x, y), 2, (0, 0, 100), -1)  # Dark red (thin)
+        
+        if right_points:
+            transformed_right = self.transform_lane_points(right_points, (384, 192))
+            # Draw all right lane points (thin green)
+            for pt in transformed_right:
+                x, y = int(pt[0]), int(pt[1])
+                if 0 <= x < 384 and 0 <= y < 384:
+                    cv2.circle(bev_img, (x, y), 2, (0, 100, 0), -1)  # Dark green (thin)
+        
+        # Calculate and draw center line with 0.1s decision points
+        if transformed_left and transformed_right and len(transformed_left) > 0 and len(transformed_right) > 0:
+            # Get vehicle speed
+            velocity = self.vehicle.get_velocity()
+            speed_ms = np.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2)  # m/s
+            speed_kmh = speed_ms * 3.6  # km/h for display
             
-        #     # Mark the start and end points
-        #     if len(points) > 0:
-        #         cv2.circle(bev_img, points[0], 5, (0, 0, 255), -1)  # Red dot at start
-        #         cv2.circle(bev_img, points[-1], 5, (255, 0, 0), -1)  # Blue dot at end
+            # Calculate distance traveled in 0.1 seconds (in meters)
+            distance_per_step = speed_ms * 0.1  # meters per 0.1s
+            
+            # Convert meters to pixels based on IPM calibration
+            # Lane width is 7m and spans ~384 pixels horizontally
+            # The near-far distance is 13.5m (15-1.5) and spans ~384 pixels vertically
+            pixels_per_meter = 384 / 13.5  # Vertical scale
+            
+            # Distance in pixels per 0.1s
+            pixel_step = distance_per_step * pixels_per_meter
+            
+            # Center points between lanes
+            center_points = []
+            
+            # Calculate center points from left and right lanes
+            min_len = min(len(transformed_left), len(transformed_right))
+            for i in range(min_len):
+                center_x = (transformed_left[i][0] + transformed_right[i][0]) / 2
+                center_y = (transformed_left[i][1] + transformed_right[i][1]) / 2
+                center_points.append((center_x, center_y))
+                
+            # Sort center points by y (distance from car)
+            center_points.sort(key=lambda pt: pt[1], reverse=True)
+            
+            # Create 0.1s decision points along centerline
+            decision_points = []
+            
+            # Start from the bottom of the image (closest to car)
+            if center_points:
+                # Start from closest point to car (highest y value)
+                current_y = center_points[0][1]
+                last_idx = 0
+                
+                # Add first point
+                decision_points.append((center_points[0][0], center_points[0][1]))
+                
+                # Add points at 0.1s intervals based on speed
+                while pixel_step > 0 and current_y > 0 and last_idx < len(center_points) - 1:
+                    # Move up by pixel_step (corresponds to 0.1s travel)
+                    current_y -= pixel_step
+                    
+                    # Find the closest center point to this y position
+                    for i in range(last_idx, len(center_points)):
+                        if center_points[i][1] <= current_y:
+                            decision_points.append((center_points[i][0], center_points[i][1]))
+                            last_idx = i
+                            break
+                
+                # Connect all centerline points with thin yellow line
+                if len(center_points) >= 2:
+                    pts = np.array(center_points, dtype=np.int32)
+                    cv2.polylines(bev_img, [pts], False, (0, 180, 255), 1)
+                
+                # Draw decision points (larger yellow circles with time markers)
+                for i, pt in enumerate(decision_points):
+                    x, y = int(pt[0]), int(pt[1])
+                    if 0 <= x < 384 and 0 <= y < 384:
+                        # Draw larger yellow circle for each 0.1s point
+                        cv2.circle(bev_img, (x, y), 6, (0, 255, 255), -1)
+                        
+                        # Label with time
+                        time_sec = (i * 0.1)
+                        if time_sec < 1.0:
+                            time_label = f"{time_sec:.1f}s"
+                        else:
+                            time_label = f"{time_sec:.1f}s"
+                            
+                        cv2.putText(bev_img, time_label, (x + 10, y), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1)
+            
+            # Display speed information
+            # cv2.putText(bev_img, f"Speed: {speed_kmh:.1f} km/h ({speed_ms:.1f} m/s)", (10, 40), 
+            #         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            # cv2.putText(bev_img, f"Decision interval: 0.1s = {distance_per_step:.2f}m", (10, 60), 
+            #         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        
+        # Add title
+        # cv2.putText(bev_img, "Bird's Eye View with 0.1s Decision Points", (10, 20), 
+        #         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         return bev_img
 
@@ -415,9 +524,6 @@ class Controller:
         if self.seg_surface is not None:
             self.display.blit(self.seg_surface, (0, 195))
 
-        # if self.bev_surface is not None:
-        #     self.display.blit(self.bev_surface, (1000, 0))
-
         # if hasattr(self.detector, 'lane_points_vis'):
         #     lane_points_vis_rgb = cv2.cvtColor(self.detector.lane_points_vis, cv2.COLOR_BGR2RGB)
         #     lane_points_surface = pygame.surfarray.make_surface(lane_points_vis_rgb.swapaxes(0, 1))
@@ -434,28 +540,8 @@ class Controller:
             self.display.blit(text, (780, 490))
             # Update the display
 
-        # Display polylines visualization in a new position (could also replace one of the above)
-        if hasattr(self, 'polylines_surface') and self.polylines_surface is not None:
-            self.display.blit(self.polylines_surface, (780, 0))  # Adjust position as needed
-            # Add label
-            font = pygame.font.SysFont('Arial', 18)
-            text = font.render('Lane Polylines', True, (255, 255, 255))
-            self.display.blit(text, (780, 180))
-
-        # Display current speed
-        # if hasattr(self, 'current_speed'):
-        #     speed_text = font.render(f"Speed: {self.current_speed:.1f} km/h", True, (255, 255, 255))
-        #     self.display.blit(speed_text, (20, 60))
-
         pygame.display.flip()
 
-    def toggle_controller(self):
-        """Switch between PID and MPC controllers"""
-        if self.control_mode == "PID":
-            self.control_mode = "MPC"
-        else:
-            self.control_mode = "PID"
-        print(f"Controller switched to: {self.control_mode}")
 
     def control_car(self):
         """
@@ -480,8 +566,6 @@ class Controller:
         control.throttle = 0.0
         control.brake = 0.0
         control.steer = 0.0
-
-        
         
         # Stop autopilot to allow manual control
         self.vehicle.set_autopilot(False)
@@ -494,114 +578,65 @@ class Controller:
             
             while running:
                 try:
-                    milliseconds = clock.tick_busy_loop(30)  # 30 FPS
-                
+                    milliseconds = clock.tick_busy_loop(10)  # 60 FPS
+                    
                     # Process events
                     for event in pygame.event.get():
                         if event.type == pygame.QUIT:
                             running = False
                         elif event.type == pygame.KEYDOWN:
                             if event.key == pygame.K_q:
-                                print("Control deactivated")
-                                running = False
-                            elif event.key == pygame.K_r:
+                                print("Manual control deactivated")
+                                self.vehicle.set_autopilot(True)
+                            elif event.key == pygame.K_r:  # 'R' key toggles recording
                                 self.toggle_recording()
-                            elif event.key == pygame.K_t:
-                                # Toggle autonomous mode
-                                self.autonomous_mode = not self.autonomous_mode
-                                print(f"Autonomous mode: {'ON' if self.autonomous_mode else 'OFF'}")
-                                self.pid_controller.setAutonomousDriveState(
-                                    "SAE_4" if self.autonomous_mode else "SAE_0")
-                                if hasattr(self, 'mpc_controller'):
-                                    self.mpc_controller.setAutonomousDriveState(
-                                    "SAE_4" if self.autonomous_mode else "SAE_0")
-                            elif event.key == pygame.K_c:
-                                # Toggle between controllers
-                                if self.autonomous_mode:
-                                    self.toggle_controller()
                     
                     # Get pressed keys
                     keys = pygame.key.get_pressed()
-                
-                    # Handle control based on mode
-                    if self.autonomous_mode:
-                        try:
-                            # Get lane error from lane detector if available
-                            lane_error = 0.0
-                            if hasattr(self.detector, 'lane_detector') and hasattr(self.detector.lane_detector, 'lane_Error'):
-                                lane_error = self.detector.lane_detector.lane_Error
-                                print(f"Using lane error: {lane_error}")
-                            
-                            # Get current time for PID computation
-                            current_time = time.time()
-                            
-                            # Set the camera error in the PID controller
-                            self.pid_controller.setCameraError(lane_error)
-                            
-                            # Calculate steering angle using PID
-                            steer_angle = self.pid_controller.steeringPID(lane_error, current_time)
-                            
-                            # Convert from degrees to CARLA steering (-1 to 1)
-                            carla_steer = (steer_angle - 90.0) / 90.0
-                            carla_steer = max(-1.0, min(1.0, carla_steer))
-                            
-                            # Calculate speed based on error
-                            speed_percentage = self.pid_controller.speedAdjustment(lane_error)
-                            throttle = min(speed_percentage / 100.0, 0.5)  # Limit to 70% throttle
-                            
-                            # Apply control
-                            control.steer = carla_steer
-                            control.throttle = throttle
-                            control.brake = 0.0
-                            
-                            # Debug info
-                            print(f"PID: Error={lane_error:.1f}, Steer={carla_steer:.2f}, Throttle={throttle:.2f}")
-                        except Exception as pid_err:
-                            print(f"Error in PID control: {pid_err}")
-                            self.autonomous_mode = False  # Revert to manual if error
-                    else:
-                        # Manual control mode - keep your existing code
-                        if keys[pygame.K_w]:
-                            control.throttle = min(control.throttle + 0.01, 1.0)
-                            control.brake = 0.0
-                        else:
-                            control.throttle = 0.0                  
-                        # Handle braking - same as _parse_vehicle_keys
-                        if keys[pygame.K_s]:
-                            control.throttle = 0.0
-                            control.brake = min(control.brake + 0.2, 1.0)
-                        else:
-                            control.brake = 0.0
-                        
-                        # Handle steering with time-based increment - same as _parse_vehicle_keys
-                        steer_increment = 5e-4 * milliseconds
-                        if keys[pygame.K_a]:
-                            if self._steer_cache > 0:
-                                self._steer_cache = 0
-                            else:
-                                self._steer_cache -= steer_increment
-                        elif keys[pygame.K_d]:
-                            if self._steer_cache < 0:
-                                self._steer_cache = 0
-                            else:
-                                self._steer_cache += steer_increment
-                        else:
-                            self._steer_cache = 0.0  # Immediate return to center
-                        
-                        # Apply steering limits and rounding
-                        self._steer_cache = min(0.7, max(-0.7, self._steer_cache))
-                        control.steer = round(self._steer_cache, 1)
-                        
-                        
-                        # Handle handbrake
-                        control.hand_brake = keys[pygame.K_SPACE]
-
-                        if self.vehicle.is_at_traffic_light():
-                            traffic_light = self.vehicle.get_traffic_light()
-                            if traffic_light.get_state() == carla.TrafficLightState.Red:
-                                traffic_light.set_state(carla.TrafficLightState.Green)
                     
-                        # Apply the control to the vehicle
+                    # Handle throttle - same as _parse_vehicle_keys
+                    if keys[pygame.K_w]:
+                        control.throttle = min(control.throttle + 0.01, 1.0)
+                        control.brake = 0.0
+                    else:
+                        control.throttle = 0.0  # No throttle decay, immediate zero
+                    
+                    # Handle braking - same as _parse_vehicle_keys
+                    if keys[pygame.K_s]:
+                        control.throttle = 0.0
+                        control.brake = min(control.brake + 0.2, 1.0)
+                    else:
+                        control.brake = 0.0
+                    
+                    # Handle steering with time-based increment - same as _parse_vehicle_keys
+                    steer_increment = 5e-4 * milliseconds
+                    if keys[pygame.K_a]:
+                        if self._steer_cache > 0:
+                            self._steer_cache = 0
+                        else:
+                            self._steer_cache -= steer_increment
+                    elif keys[pygame.K_d]:
+                        if self._steer_cache < 0:
+                            self._steer_cache = 0
+                        else:
+                            self._steer_cache += steer_increment
+                    else:
+                        self._steer_cache = 0.0  # Immediate return to center
+                    
+                    # Apply steering limits and rounding
+                    self._steer_cache = min(0.7, max(-0.7, self._steer_cache))
+                    control.steer = round(self._steer_cache, 1)
+                    
+                    
+                    # Handle handbrake
+                    control.hand_brake = keys[pygame.K_SPACE]
+
+                    if self.vehicle.is_at_traffic_light():
+                        traffic_light = self.vehicle.get_traffic_light()
+                        if traffic_light.get_state() == carla.TrafficLightState.Red:
+                            traffic_light.set_state(carla.TrafficLightState.Green)
+                    
+                    # Apply the control to the vehicle
                     self.vehicle.apply_control(control)
                 
                     # Update the display to show both camera views

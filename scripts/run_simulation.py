@@ -30,7 +30,6 @@ def main():
             controller.cleanup()
         if world is not None:
             world.destroy_sensors() 
-        print("I am still standing")
 
 
 if __name__ == "__main__":

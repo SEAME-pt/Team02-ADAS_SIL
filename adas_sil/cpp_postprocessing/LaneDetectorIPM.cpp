@@ -79,9 +79,9 @@ Mat LaneDetector::polyfit(const Mat& y_vals, const Mat& x_vals, int degree)
         std::cerr << "Error in polyfit: " << e.what() << std::endl;
         return Mat();
     }
-    if (abs(coeffs.at<double>(0)) < 0.0005)
+    if (abs(coeffs.at<double>(0)) < 0.005)
         coeffs.at<double>(0) = 0;
-    if (abs(coeffs.at<double>(1)) < 0.001)
+    if (abs(coeffs.at<double>(1)) < 0.01)
         coeffs.at<double>(1) = 0;
     if (abs(coeffs.at<double>(2)) < 0.01)
         coeffs.at<double>(2) = 0;
