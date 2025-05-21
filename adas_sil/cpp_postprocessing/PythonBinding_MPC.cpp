@@ -21,14 +21,18 @@ PYBIND11_MODULE(mpc_controller_py, m) {
         .def("init", &ModelPredictiveController::init,
              py::arg("horizon"), py::arg("wheelbase"), py::arg("time_step"),
              py::arg("Q"), py::arg("R"), py::arg("Qf"))
+            
+        .def("setTargetVelocity", &ModelPredictiveController::setTargetVelocity,
+             py::arg("velocity"), "Set target velocity in m/s")
         .def("solve", [](ModelPredictiveController& self, const Eigen::Vector4d& x0, py::object traj_coeffs) {
             std::vector<double> coeffs;
             if (!traj_coeffs.is_none()) {
                 coeffs = traj_coeffs.cast<std::vector<double>>();
             }
             return self.solve(x0, coeffs);
-        });
-        // .def("setTrajectoryCoefficients", &ModelPredictiveController::setTrajectoryCoefficients)
-        // .def("setAutonomousDriveState", &ModelPredictiveController::setAutonomousDriveState)
-        // .def("getAutonomousDriveState", &ModelPredictiveController::getAutonomousDriveState);
+        })
+        .def("setVehicleState", &ModelPredictiveController::setVehicleState,
+             py::arg("state"), "Set current vehicle state vector [x, y, heading, velocity]")
+        .def("getVehicleState", &ModelPredictiveController::getVehicleState,
+             "Get current vehicle state vector [x, y, heading, velocity]");
 }

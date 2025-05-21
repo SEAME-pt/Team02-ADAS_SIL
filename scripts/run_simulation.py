@@ -4,8 +4,7 @@
 import time
 import argparse
 from adas_sil.simulation.carla_setup import setup_carla_environment
-from adas_sil.perception.Detection import Detection
-from adas_sil.control.controller2 import Controller
+from adas_sil.control.controller import Controller
 
 def main():
     parser = argparse.ArgumentParser(description="Run ADAS simulation")

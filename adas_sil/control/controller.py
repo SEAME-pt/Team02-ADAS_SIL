@@ -1,12 +1,14 @@
-import dis
+from importlib.util import MAGIC_NUMBER
 import sys
 import os
-import numpy as np
-import cv2
-import keyboard
 import time
 import pygame
 
+from adas_sil.control.CameraManager import CameraManager
+from adas_sil.control.vehicle_controller.pid_controller import PIDController
+from adas_sil.control.vehicle_controller.mpc_controller import MPCController
+from adas_sil.control.display import Display
+from adas_sil.perception.Detection import Detection
 
 opencv_bin = "C:/Users/manue/opencv/build/x64/vc16/bin"
 os.environ["PATH"] = opencv_bin + os.pathsep + os.environ["PATH"]
@@ -24,12 +26,6 @@ except ImportError as e:
 
 import carla
 
-from adas_sil.control.CameraManager import CameraManager
-from adas_sil.control.vehicle_controller.pid_controller import PIDController
-from adas_sil.control.vehicle_controller.mpc_controller import MPCController
-from adas_sil.control.display import Display
-from adas_sil.perception.Detection import Detection
-
 class Controller:
     def __init__(self, vehicle, world):
         self.vehicle = vehicle
@@ -44,18 +40,14 @@ class Controller:
 
         try:
             self.display_manager = Display(1280, 960)
-            self.camera_manager = CameraManager(vehicle, world, self.display_manager)
+            self.detector = Detection()
+            self.camera_manager = CameraManager(vehicle, world, self.display_manager, self.detector)
 
             self.pid_controller = PIDController(15.0, 0.01, 5.0, 0.5, 0.02)
+            self.mpc_controller = MPCController(vehicle, 10, 0.1)  # Initialize MPC controller
 
         except Exception as e:
             print(f"Error initializing PID controller: {e}")
-
-        try:           
-            self.detector = Detection()
-        except Exception as e:
-            print(f"Error initializing detector: {e}")
-            raise
 
         # Video recording
             # # Create output directories
@@ -71,19 +63,19 @@ class Controller:
             # self.video_writer = None
 
 
-    def toggle_recording(self):
-        self.record_video = not self.record_video
-        if self.record_video:
-            # Start a new recording
-            self.video_filename = os.path.join(self.video_dir, f'drive_{time.strftime("%Y%m%d-%H%M%S")}.mp4')
-            self.video_writer = None  # Will be initialized on next frame
-            print(f"Video recording started: {self.video_filename}")
-        else:
-            # Stop recording
-            if self.video_writer is not None:
-                self.video_writer.release()
-                self.video_writer = None
-                print(f"Video recording stopped: {self.video_filename}")
+    # def toggle_recording(self):
+    #     self.record_video = not self.record_video
+    #     if self.record_video:
+    #         # Start a new recording
+    #         self.video_filename = os.path.join(self.video_dir, f'drive_{time.strftime("%Y%m%d-%H%M%S")}.mp4')
+    #         self.video_writer = None  # Will be initialized on next frame
+    #         print(f"Video recording started: {self.video_filename}")
+    #     else:
+    #         # Stop recording
+    #         if self.video_writer is not None:
+    #             self.video_writer.release()
+    #             self.video_writer = None
+    #             print(f"Video recording stopped: {self.video_filename}")
 
     def toggle_controller(self):
         """Switch between PID and MPC controllers"""
@@ -116,8 +108,6 @@ class Controller:
         control.throttle = 0.0
         control.brake = 0.0
         control.steer = 0.0
-
-        
         
         # Stop autopilot to allow manual control
         self.vehicle.set_autopilot(False)
@@ -125,124 +115,40 @@ class Controller:
         print("W: accelerate, S: brake, A/D: steer, SPACE: handbrake, Q: exit")
         
         try:
-            running = True
+            self.running = True
             clock = pygame.time.Clock()
             
-            while running:
+            while self.running:
                 try:
-                    milliseconds = clock.tick_busy_loop(30)  # 30 FPS
+                    self.milliseconds = clock.tick_busy_loop(30)  # 30 FPS
                 
                     # Process events
                     for event in pygame.event.get():
-                        if event.type == pygame.QUIT:
-                            running = False
-                        elif event.type == pygame.KEYDOWN:
-                            if event.key == pygame.K_q:
-                                print("Control deactivated")
-                                running = False
-                            elif event.key == pygame.K_r:
-                                self.toggle_recording()
-                            elif event.key == pygame.K_t:
-                                # Toggle autonomous mode
-                                self.autonomous_mode = not self.autonomous_mode
-                                print(f"Autonomous mode: {'ON' if self.autonomous_mode else 'OFF'}")
-                                self.pid_controller.setAutonomousDriveState(
-                                    "SAE_4" if self.autonomous_mode else "SAE_0")
-                                if hasattr(self, 'mpc_controller'):
-                                    self.mpc_controller.setAutonomousDriveState(
-                                    "SAE_4" if self.autonomous_mode else "SAE_0")
-                            elif event.key == pygame.K_c:
-                                # Toggle between controllers
-                                if self.autonomous_mode:
-                                    self.toggle_controller()
+                        self.general_control(control, event)
                     
                     # Get pressed keys
                     keys = pygame.key.get_pressed()
                 
                     # Handle control based on mode
                     if self.autonomous_mode:
-                        try:
-                            # Get lane error from lane detector if available
-                            lane_error = 0.0
-                            if hasattr(self.detector, 'lane_detector') and hasattr(self.detector.lane_detector, 'lane_Error'):
-                                lane_error = self.detector.lane_detector.lane_Error
-                                print(f"Using lane error: {lane_error}")
-                            
-                            # Get current time for PID computation
-                            current_time = time.time()
-                            
-                            # Set the camera error in the PID controller
-                            self.pid_controller.setCameraError(lane_error)
-                            
-                            # Calculate steering angle using PID
-                            steer_angle = self.pid_controller.steeringPID(lane_error, current_time)
-                            
-                            # Convert from degrees to CARLA steering (-1 to 1)
-                            carla_steer = (steer_angle - 90.0) / 90.0
-                            carla_steer = max(-1.0, min(1.0, carla_steer))
-                            
-                            # Calculate speed based on error
-                            speed_percentage = self.pid_controller.speedAdjustment(lane_error)
-                            throttle = min(speed_percentage / 100.0, 0.5)  # Limit to 70% throttle
-                            
-                            # Apply control
-                            control.steer = carla_steer
-                            control.throttle = throttle
-                            control.brake = 0.0
-                            
-                            # Debug info
-                            print(f"PID: Error={lane_error:.1f}, Steer={carla_steer:.2f}, Throttle={throttle:.2f}")
-                        except Exception as pid_err:
-                            print(f"Error in PID control: {pid_err}")
-                            self.autonomous_mode = False  # Revert to manual if error
+                        self.autonomous_control(control, keys)
                     else:
-                        # Manual control mode - keep your existing code
-                        if keys[pygame.K_w]:
-                            control.throttle = min(control.throttle + 0.01, 1.0)
-                            control.brake = 0.0
-                        else:
-                            control.throttle = 0.0                  
-                        # Handle braking - same as _parse_vehicle_keys
-                        if keys[pygame.K_s]:
-                            control.throttle = 0.0
-                            control.brake = min(control.brake + 0.2, 1.0)
-                        else:
-                            control.brake = 0.0
-                        
-                        # Handle steering with time-based increment - same as _parse_vehicle_keys
-                        steer_increment = 5e-4 * milliseconds
-                        if keys[pygame.K_a]:
-                            if self._steer_cache > 0:
-                                self._steer_cache = 0
-                            else:
-                                self._steer_cache -= steer_increment
-                        elif keys[pygame.K_d]:
-                            if self._steer_cache < 0:
-                                self._steer_cache = 0
-                            else:
-                                self._steer_cache += steer_increment
-                        else:
-                            self._steer_cache = 0.0  # Immediate return to center
-                        
-                        # Apply steering limits and rounding
-                        self._steer_cache = min(0.7, max(-0.7, self._steer_cache))
-                        control.steer = round(self._steer_cache, 1)
-                        
-                        
-                        # Handle handbrake
-                        control.hand_brake = keys[pygame.K_SPACE]
-
-                        if self.vehicle.is_at_traffic_light():
-                            traffic_light = self.vehicle.get_traffic_light()
-                            if traffic_light.get_state() == carla.TrafficLightState.Red:
-                                traffic_light.set_state(carla.TrafficLightState.Green)
+                        self.manual_control(control, keys)
+                    if self.vehicle.is_at_traffic_light():
+                        traffic_light = self.vehicle.get_traffic_light()
+                        if traffic_light.get_state() == carla.TrafficLightState.Red:
+                            traffic_light.set_state(carla.TrafficLightState.Green)
                     
                         # Apply the control to the vehicle
                     self.vehicle.apply_control(control)
                 
                     # Update the display to show both camera views
                     try:
-                        self.update_display()
+                        self.display_manager.update_display(self.camera_manager.rgb_surface,
+                                                            self.camera_manager.lane_surface,
+                                                            self.camera_manager.seg_surface,
+                                                            self.camera_manager.bev_surface,
+                                                            self.camera_manager.polylines_surface)
                     except Exception as display_err:
                         print(f"Display update error: {display_err}")
                 except Exception as loop_err:
@@ -257,14 +163,103 @@ class Controller:
             # Reactivate autopilot when done
             # self.vehicle.set_autopilot(True)
 
-    
+
+    def general_control(self, control, event):
+        if event.type == pygame.QUIT:
+            self.running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_q:
+                print("Control deactivated")
+                self.running = False
+            # elif event.key == pygame.K_r:
+            #     self.toggle_recording()
+            elif event.key == pygame.K_t:
+                # Toggle autonomous mode
+                self.autonomous_mode = not self.autonomous_mode
+                print(f"Autonomous mode: {'ON' if self.autonomous_mode else 'OFF'}")
+                self.pid_controller.setAutonomousDriveState(
+                    "SAE_4" if self.autonomous_mode else "SAE_0")
+                if hasattr(self, 'mpc_controller'):
+                    self.mpc_controller.setAutonomousDriveState(
+                    "SAE_4" if self.autonomous_mode else "SAE_0")
+            elif event.key == pygame.K_c:
+                # Toggle between controllers
+                if self.autonomous_mode:
+                    self.toggle_controller()
+
+
+    def autonomous_control(self, control, keys):
+
+        state = self.mpc_controller.extract_vehicle_state()
+        if not state:
+            print("Vehicle state not available")
+            return
+        try:
+            if self.control_mode == "PID":
+                lane_error = 0.0
+                # Get lane error from the detector
+                if hasattr(self.detector, 'lane_detector') and hasattr(self.detector.lane_detector, 'lane_Error'):
+                    lane_error = self.detector.lane_detector.lane_Error
+                    control.steer, control.throttle = self.pid_controller.update(lane_error)
+            elif self.control_mode == "MPC":
+                try:
+                    if hasattr(self.detector, 'lane_detector') and hasattr(self.detector.lane_detector, 'midCoeffs'):
+                        mid_coeffs = self.detector.lane_detector.midCoeffs
+                except Exception as e:
+                    print(f"Error accessing midCoeffs: {e}")
+                if mid_coeffs:
+                    control.steer, control.throttle = self.mpc_controller.compute_control(mid_coeffs)
+        except Exception as e:
+            print(f"Error in autonomous control: {e}")
+            self.autonomous_mode = False  # Revert to manual if error
+
+    def manual_control(self, control, keys):
+
+        """
+            Manual control of the vehicle using keyboard input.
+            Uses WASD controls similar to CARLA's manual_control.py
+        """
+        # Manual control mode - keep your existing code
+        if keys[pygame.K_w]:
+            control.throttle = min(control.throttle + 0.01, 1.0)
+            control.brake = 0.0
+        else:
+            control.throttle = 0.0                  
+        # Handle braking - same as _parse_vehicle_keys
+        if keys[pygame.K_s]:
+            control.throttle = 0.0
+            control.brake = min(control.brake + 0.2, 1.0)
+        else:
+            control.brake = 0.0
+        
+        # Handle steering with time-based increment - same as _parse_vehicle_keys
+        steer_increment = 5e-4 * self.milliseconds
+        if keys[pygame.K_a]:
+            if self._steer_cache > 0:
+                self._steer_cache = 0
+            else:
+                self._steer_cache -= steer_increment
+        elif keys[pygame.K_d]:
+            if self._steer_cache < 0:
+                self._steer_cache = 0
+            else:
+                self._steer_cache += steer_increment
+        else:
+            self._steer_cache = 0.0  # Immediate return to center
+        
+        # Apply steering limits and rounding
+        self._steer_cache = min(0.7, max(-0.7, self._steer_cache))
+        control.steer = round(self._steer_cache, 1)
+        
+        # Handle handbrake
+        control.hand_brake = keys[pygame.K_SPACE]
 
 
     def cleanup(self):
 
-        if self.record_video and self.video_writer is not None:
-            self.video_writer.release()
-            print(f"Video saved to {self.video_filename}")
+        # if self.record_video and self.video_writer is not None:
+        #     self.video_writer.release()
+        #     print(f"Video saved to {self.video_filename}")
             
         print("Cleaning up resources...")
         

@@ -24,11 +24,17 @@ class ModelPredictiveController {
 
         void run(); // Main control loop
         Control solve(const Eigen::Vector4d& x0, const std::vector<double>& traj_coeffs);
+        void setVehicleState(const Eigen::Vector4d& state);
+        Eigen::Vector4d getVehicleState() const { return this->currentState_; }
+
+        void setTargetVelocity(double velocity);
 
     private:
 
-
+        Eigen::Vector4d currentState_; // [x, y, psi, v]
         std::string autonomousDrive_;
+
+        double target_velocity_ = 8.0;
 
         float initial_v; //x and y start at zero and psi starts at 90 degrees
         size_t N_; //steps
@@ -40,16 +46,7 @@ class ModelPredictiveController {
 
         std::vector<double> trajectoryCoeffs;
 
-
         //Backward Euler  discretization - dynamics(front axle development, considering no slip)
         Eigen::Vector4d backwardEuler(const Eigen::Vector4d& x, const Eigen::Vector2d& u);
-
-
-        // double computeCostconst std::vector<Eigen::Vector4d>& xTraj,
-        //     const std::vector<Eigen::Vector2d>& uSeq,
-        //     const std::vector<Eigen::Vector4d>& xRef,
-        //     const std::vector<Eigen::Vector2d>& uRef;
-            
-        // void computeControlInputs();
 
 };

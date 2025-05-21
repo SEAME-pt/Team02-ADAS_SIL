@@ -1,5 +1,6 @@
 import sys
 import os
+from tkinter import N
 
 opencv_bin = "C:/Users/manue/opencv/build/x64/vc16/bin"
 os.environ["PATH"] = opencv_bin + os.pathsep + os.environ["PATH"]
@@ -31,6 +32,48 @@ from PIL import Image
 
 class Detection:
 
+    """
+    Lane detection system using hybrid deep learning and computer vision techniques.
+    
+    The Detection class combines neural network segmentation with traditional CV algorithms 
+    to detect and fit lane boundaries. It uses a C++ backend through Python bindings 
+    for efficient image processing and lane polynomial fitting.
+    
+    Key components:
+        - Neural network inference using ONNX for lane segmentation
+        - C++ LaneProcessor backend for lane fitting and tracking
+        - Bird's Eye View (BEV) transformation for better lane visualization
+        - Polynomial lane representation for autonomous driving control
+        
+    Detection pipeline:
+        1. Convert Carla simulator images to OpenCV format
+        2. Preprocess images for neural network inference
+        3. Run inference using ONNX Runtime
+        4. Process segmentation outputs with C++ LaneProcessor
+        5. Extract lane polynomial coefficients for visualization and control
+    
+    Integrated with C++ LaneDetectorIPM through:
+        - preProcess() - Image preprocessing
+        - postProcess() - Lane detection algorithms
+        - Left/right polynomial coefficients extraction
+        - BEV image transformation
+        - Lane error calculation for lateral control
+    
+    Available C++ binding properties (accessed via self.lane_detector):
+        - left_coeffs - Polynomial coefficients for left lane [a, b, c] where x = a*y² + b*y + c
+        - right_coeffs - Polynomial coefficients for right lane [a, b, c]
+        - midCoeffs - Mid-lane polynomial coefficients derived from left and right lanes
+        - left_points - List of points [(x,y),...] along the left lane curve
+        - right_points - List of points [(x,y),...] along the right lane curve
+        - all_lane_points - All detected lane points before left/right classification
+        - bev_image - Bird's-eye view perspective transform of the lane detection
+        - polylines_viz - Visualization of detected lane polylines
+        - lane_Error - Lateral position error relative to lane center (float)
+    
+    The hybrid approach leverages deep learning robustness with 
+    traditional CV efficiency for real-time lane detection.
+    """
+
     # Define preprocessing transform (using torchvision)
     transform_pipeline = transforms.Compose([
         transforms.ToTensor(),
@@ -43,8 +86,6 @@ class Detection:
         if torch.cuda.is_available():
             print(f"GPU: {torch.cuda.get_device_name(0)}")
             print(f"CUDA Version: {torch.version.cuda}")
-            print(f"Memory allocated: {torch.cuda.memory_allocated(0)/1024**2:.2f} MB")
-            print(f"Memory reserved: {torch.cuda.memory_reserved(0)/1024**2:.2f} MB")
         else:
             print("No CUDA device detected! Running on CPU.")
             
@@ -265,7 +306,7 @@ class Detection:
             
         except Exception as e:
             print(f"Error processing segmentation mask: {e}")
-            return original_image, left_points, right_points
+            return original_image, left_points, right_points, None
 
  
     def convert_Carla_image(self, frame):

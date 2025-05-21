@@ -7,7 +7,7 @@ import keyboard
 import time
 import pygame
 
-
+from adas_sil.perception.Detection import Detection
 opencv_bin = "C:/Users/manue/opencv/build/x64/vc16/bin"
 os.environ["PATH"] = opencv_bin + os.pathsep + os.environ["PATH"]
 
@@ -18,12 +18,13 @@ sys.path.append(carla_egg)
 import carla
 
 class CameraManager:
-    def __init__(self, world, vehicle, display):
+    def __init__(self, vehicle, world, display, detector):
         self.world = world
         self.vehicle = vehicle
         self.rgb_cam = None
         self.sem_cam = None
         self.display = display
+        self.detector = detector
 
         self.setup_cameras()
 
@@ -32,6 +33,12 @@ class CameraManager:
 
         # self.detector.load_model(self.rgb_detcam)
         # self.rgb_detcam.listen(self.process_rgb_with_detection)
+
+        self.rgb_surface = None
+        self.lane_surface = None
+        self.seg_surface = None
+        self.bev_surface = None
+        self.polylines_surface = None
 
     def setup_cameras(self):
         # RGB camera setup
@@ -57,26 +64,26 @@ class CameraManager:
         #Cam to view detection 
         # self.rgb_detcam = self.world.spawn_actor(rgb_bp, rgb_transform, attach_to=self.vehicle, attachment_type=carla.AttachmentType.Rigid)
 
-    # def visualize_ipm_region(self, image):
-    #     """Draw the source region that are  being transformed to bird's eye view"""
-    #     if not hasattr(self, 'ipm'):
-    #         return image
+    def visualize_ipm_region(self, image):
+        """Draw the source region that are  being transformed to bird's eye view"""
+        if not hasattr(self, 'ipm'):
+            return image
         
-    #     # Get a copy of the image to draw on
-    #     vis_image = image.copy()
+        # Get a copy of the image to draw on
+        vis_image = image.copy()
         
-    #     # Get the four source points from the IPM
-    #     source_points = self.ipm.orig_points
+        # Get the four source points from the IPM
+        source_points = self.ipm.orig_points
         
-    #     # Draw the region on the original image
-    #     points_np = np.array(source_points, dtype=np.int32).reshape((-1, 1, 2))
-    #     cv2.polylines(vis_image, [points_np], True, (0, 0, 255), 2)
+        # Draw the region on the original image
+        points_np = np.array(source_points, dtype=np.int32).reshape((-1, 1, 2))
+        cv2.polylines(vis_image, [points_np], True, (0, 0, 255), 2)
         
-    #     # Label the region
-    #     cv2.putText(vis_image, "IPM Region", (points_np[0][0][0], points_np[0][0][1] - 10), 
-    #                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        # Label the region
+        cv2.putText(vis_image, "IPM Region", (points_np[0][0][0], points_np[0][0][1] - 10), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         
-    #     return vis_image
+        return vis_image
 
     def process_rgb_image(self, image):
         # Save the image to disk
@@ -95,21 +102,20 @@ class CameraManager:
         # Create pygame surface
         self.rgb_surface = pygame.surfarray.make_surface(array_rgb.swapaxes(0, 1))
         # Save frame to video if recording
-        if self.record_video:
-            
-            # Initialize VideoWriter on first frame
-            if self.video_writer is None:
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Use mp4v codec
-                self.video_writer = cv2.VideoWriter(
-                    self.video_filename, 
-                    fourcc, 
-                    self.video_fps, 
-                    (image.width, image.height)
-                )
-                print(f"Recording video to {self.video_filename}")
+        # if self.record_video:
+        #     # Initialize VideoWriter on first frame
+        #     if self.video_writer is None:
+        #         fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Use mp4v codec
+        #         self.video_writer = cv2.VideoWriter(
+        #             self.video_filename, 
+        #             fourcc, 
+        #             self.video_fps, 
+        #             (image.width, image.height)
+        #         )
+        #         print(f"Recording video to {self.video_filename}")
 
-            # Write the frame
-            self.video_writer.write(array)
+            # # Write the frame
+            # self.video_writer.write(array)
 
         array = array[:, :, ::-1]  # Convert BGR to RGB
         
@@ -223,16 +229,6 @@ class CameraManager:
             bev_rgb = cv2.cvtColor(bev_img, cv2.COLOR_BGR2RGB)
             self.bev_surface = pygame.surfarray.make_surface(bev_rgb.swapaxes(0, 1))
             # print("BEV image successfully received and converted to surface")
-        # else:
-            # print("BEV image not available from lane detector")
-        # Transform only the lane points to bird's eye view
-            # Get all the lane points if available
-        # if hasattr(self.detector.lane_detector, 'bev_image'):
-        #         bev_img = self.detector.lane_detector.bev_image
-        #         if bev_img is not None:
-        #             # Convert to RGB for pygame
-        #             bev_rgb = cv2.cvtColor(bev_img, cv2.COLOR_BGR2RGB)
-        #             self.bev_surface = pygame.surfarray.make_surface(bev_rgb.swapaxes(0, 1))
 
         # Convert BGR (OpenCV) to RGB (Pygame)
         lane_img = cv2.cvtColor(lane_img, cv2.COLOR_BGR2RGB)
@@ -285,10 +281,10 @@ class CameraManager:
                 points.append((x, y))
         
         # Draw the curve if we have enough points
-        # if len(points) >= 2:
-        #     # Convert to numpy array for OpenCV
-        #     pts = np.array(points, np.int32).reshape((-1, 1, 2))
-        #     cv2.polylines(bev_img, [pts], False, color, thickness)
+        if len(points) >= 2:
+            # Convert to numpy array for OpenCV
+            pts = np.array(points, np.int32).reshape((-1, 1, 2))
+            cv2.polylines(bev_img, [pts], False, color, thickness)
             
         #     # Mark the start and end points
         #     if len(points) > 0:
@@ -296,9 +292,6 @@ class CameraManager:
         #         cv2.circle(bev_img, points[-1], 5, (255, 0, 0), -1)  # Blue dot at end
         
         return bev_img
-    
-
-
 
     def cleanup(self):
 

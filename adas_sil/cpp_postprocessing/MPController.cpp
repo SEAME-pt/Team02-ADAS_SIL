@@ -49,11 +49,20 @@ void ModelPredictiveController::init(size_t horizon, double wheelbase, double Ts
 //     }
 // }
 
+
+void ModelPredictiveController::setVehicleState(const Eigen::Vector4d& state) {
+    this->currentState_ = state;
+}
+
 ModelPredictiveController::Control ModelPredictiveController::solve(const Eigen::Vector4d& x0,
                                          const std::vector<double>& traj_coeffs)
 {
     std::vector<Eigen::Vector4d> x_ref(N_ + 1);
     double y_ref_current = x0(1);
+
+    double v_start = x0(3);
+    double v_target = target_velocity_;
+    double v_diff = v_target - v_start;
 
     for (size_t k = 0; k <= N_; ++k)
     {
@@ -120,7 +129,7 @@ ModelPredictiveController::Control ModelPredictiveController::solve(const Eigen:
 
     Control best_control;
     best_control.throttle = u_flat(0);
-    best_control.steering    = u_flat(1);
+    best_control.steering = u_flat(1);
 
     return best_control;
 }
@@ -140,62 +149,66 @@ ModelPredictiveController::backwardEuler(const Eigen::Vector4d& x,
     return x_next;
 }
 
-static std::vector<Eigen::Vector2d>
-projectCurveToGround(const std::vector<double>& coeffs_uv, double focal_length,
-                     int image_width, int image_height, double camera_height,
-                     double pitch_rad)
-{
-    double cx = image_width / 2.0;
-    double cy = image_height / 2.0;
-
-    auto projectPoint = [&](double u, double v) -> Eigen::Vector2d
-    {
-        double x_cam = (u - cx) / focal_length;
-        double y_cam = (v - cy) / focal_length;
-        Eigen::Vector3d d_cam(x_cam, y_cam, 1.0);
-
-        Eigen::Matrix3d R_pitch;
-        R_pitch << 1, 0, 0, 0, cos(pitch_rad), -sin(pitch_rad), 0,
-            sin(pitch_rad), cos(pitch_rad);
-
-        Eigen::Vector3d d_world = R_pitch * d_cam;
-        double scale            = -camera_height / d_world.z();
-        double X                = scale * d_world.x();
-        double Y                = scale * d_world.y();
-        return Eigen::Vector2d(X, Y);
-    };
-
-    std::vector<Eigen::Vector2d> points;
-    for (int v = 0; v <= image_height; v += image_height / 5)
-    {
-        double u = coeffs_uv[0] + coeffs_uv[1] * v + coeffs_uv[2] * v * v +
-                   coeffs_uv[3] * v * v * v;
-        points.push_back(projectPoint(u, v));
-    }
-
-    return points;
+void ModelPredictiveController::setTargetVelocity(double velocity) {
+    target_velocity_ = velocity;
 }
 
-static std::vector<double>
-fitThirdDegreePolynomial(const std::vector<Eigen::Vector2d>& points)
-{
-    Eigen::MatrixXd A(points.size(), 4);
-    Eigen::VectorXd b(points.size());
+// static std::vector<Eigen::Vector2d>
+// projectCurveToGround(const std::vector<double>& coeffs_uv, double focal_length,
+//                      int image_width, int image_height, double camera_height,
+//                      double pitch_rad)
+// {
+//     double cx = image_width / 2.0;
+//     double cy = image_height / 2.0;
 
-    for (size_t i = 0; i < points.size(); ++i)
-    {
-        double y = points[i].y();
-        A(i, 0)  = 1.0;
-        A(i, 1)  = y;
-        A(i, 2)  = y * y;
-        A(i, 3)  = y * y * y;
-        b(i)     = points[i].x();
-    }
+//     auto projectPoint = [&](double u, double v) -> Eigen::Vector2d
+//     {
+//         double x_cam = (u - cx) / focal_length;
+//         double y_cam = (v - cy) / focal_length;
+//         Eigen::Vector3d d_cam(x_cam, y_cam, 1.0);
 
-    Eigen::VectorXd coeffs = A.colPivHouseholderQr().solve(b);
+//         Eigen::Matrix3d R_pitch;
+//         R_pitch << 1, 0, 0, 0, cos(pitch_rad), -sin(pitch_rad), 0,
+//             sin(pitch_rad), cos(pitch_rad);
 
-    return {coeffs(0), coeffs(1), coeffs(2), coeffs(3)};
-}
+//         Eigen::Vector3d d_world = R_pitch * d_cam;
+//         double scale            = -camera_height / d_world.z();
+//         double X                = scale * d_world.x();
+//         double Y                = scale * d_world.y();
+//         return Eigen::Vector2d(X, Y);
+//     };
+
+//     std::vector<Eigen::Vector2d> points;
+//     for (int v = 0; v <= image_height; v += image_height / 5)
+//     {
+//         double u = coeffs_uv[0] + coeffs_uv[1] * v + coeffs_uv[2] * v * v +
+//                    coeffs_uv[3] * v * v * v;
+//         points.push_back(projectPoint(u, v));
+//     }
+
+//     return points;
+// }
+
+// static std::vector<double>
+// fitThirdDegreePolynomial(const std::vector<Eigen::Vector2d>& points)
+// {
+//     Eigen::MatrixXd A(points.size(), 4);
+//     Eigen::VectorXd b(points.size());
+
+//     for (size_t i = 0; i < points.size(); ++i)
+//     {
+//         double y = points[i].y();
+//         A(i, 0)  = 1.0;
+//         A(i, 1)  = y;
+//         A(i, 2)  = y * y;
+//         A(i, 3)  = y * y * y;
+//         b(i)     = points[i].x();
+//     }
+
+//     Eigen::VectorXd coeffs = A.colPivHouseholderQr().solve(b);
+
+//     return {coeffs(0), coeffs(1), coeffs(2), coeffs(3)};
+// }
 
 // int main() {
 //     size_t N = 10;

@@ -39,7 +39,7 @@ class Display:
 
             # Display bird's eye view on bottom-right
         if bev_surface is not None:
-            self.display.blit(self.bev_surface, (390, 195))
+            self.display.blit(bev_surface, (390, 195))
             
             # Add label
             font = pygame.font.SysFont('Arial', 24)
