@@ -120,6 +120,7 @@ endfunction()
 
 setup_python_module(lane_detector_py)
 setup_python_module(pid_controller_py)
+setup_python_module(mpc_controller_py)
 
 
 

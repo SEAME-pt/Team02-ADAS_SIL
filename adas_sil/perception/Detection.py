@@ -242,7 +242,10 @@ class Detection:
             
             # Make sure it's contiguous and float32
             output_data = np.ascontiguousarray(concatenated_data, dtype=np.float32)
-
+            expected_size = width * height * 2
+            if output_data.size != expected_size:
+                print(f"Warning: Output data size {output_data.size} doesn't match expected {expected_size}")
+                return display_img, left_points, right_points, bev_img
             # Set data and run lane detection
             self.lane_detector.setOutputData(output_data)
             self.lane_detector.postProcess(display_img)

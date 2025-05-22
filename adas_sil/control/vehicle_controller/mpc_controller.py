@@ -19,7 +19,7 @@ except ImportError as e:
 import carla
 
 class MPCController:
-    def __init__(self, vehicle_model=None, horizon=10, dt=0.1, target_speed_kmh=30.0):
+    def __init__(self, vehicle = None, horizon=10, dt=0.1, target_speed_kmh=30.0):
         """
         Initialize the MPC controller wrapper
         
@@ -28,7 +28,7 @@ class MPCController:
             horizon: Prediction horizon in steps
             dt: Time step in seconds
         """
-        self.vehicle_model = vehicle_model
+        self.vehicle = vehicle
         self.horizon = horizon
         self.dt = dt
 
@@ -145,6 +145,7 @@ class MPCController:
             
             # Get vehicle state from controller
             state = self.get_vehicle_state()
+            print(f"Vehicle state: {state}")
             if state is None:
                 print("No vehicle state available")
                 return 0.0, 0.0
@@ -153,6 +154,7 @@ class MPCController:
             if lane_coeffs is None or len(lane_coeffs) < 4:
                 # Default to straight path if no coefficients
                 lane_coeffs = [0.0, 0.0, 0.0, 0.0]
+                print("No lane coefficients provided, using default straight path")
                 
             # Call the C++ solver
             control = self.mpc_controller.solve(state, lane_coeffs)
@@ -160,7 +162,7 @@ class MPCController:
             # Extract control values
             steering = float(control.steering)
             throttle = float(control.throttle)
-            
+            print(f"Control values: steering={steering}, throttle={throttle}")
             # Apply limits
             steering = max(-0.7, min(0.7, steering))  # Limit to [-0.7, 0.7]
             throttle = max(0.0, min(1.0, throttle))   # Limit to [0, 1]

@@ -30,26 +30,6 @@ void ModelPredictiveController::init(size_t horizon, double wheelbase, double Ts
               << ", timestep=" << Ts_ << std::endl;
 }
 
-// void ModelPredictiveController::run()
-// {
-//     while (true)
-//     {
-//         Eigen::Vector4d x0(0, 0, 0, this->initial_v);
-//         double current_time   = getCurrentTime();
-//         std::string sae_level = getAutonomousDriveState();
-//         if (sae_level.find("SAE_5") != std::string::npos ||
-//             sae_level.find("SAE_4") != std::string::npos)
-//         {
-//             Control control_values = solve(x0, this->trajectoryCoeffs);
-//             publisher_->publishSpeed(control_values.throttle);
-//             publisher_->publishSteering(control_values.steering);
-//             std::this_thread::sleep_for(std::chrono::milliseconds(
-//                 static_cast<int>(fixed_delta_time_ * 1000)));
-//         }
-//     }
-// }
-
-
 void ModelPredictiveController::setVehicleState(const Eigen::Vector4d& state) {
     this->currentState_ = state;
 }
@@ -73,7 +53,7 @@ ModelPredictiveController::Control ModelPredictiveController::solve(const Eigen:
                        3 * traj_coeffs[3] * y * y;
         double psi = std::atan(dx_dy) +
                      M_PI / 2.0; // Adjust heading because Y is perpendicular
-        x_ref[k] << x, y, psi, x0(3);
+        x_ref[k] << x, y, psi, v_target;
     }
 
     Eigen::VectorXd u_flat = Eigen::VectorXd::Zero(2 * N_);

@@ -33,7 +33,7 @@ class Controller:
 
         # Control state
         self.autonomous_mode = False
-        self.control_mode = "PID"  # "PID" or "MPC"
+        self.control_mode = "MPC"  # "PID" or "MPC"
         self._steer_cache = 0.0
         self.autonomous_mode = False
         self._previous_t_state = False
@@ -44,7 +44,7 @@ class Controller:
             self.camera_manager = CameraManager(vehicle, world, self.display_manager, self.detector)
 
             self.pid_controller = PIDController(15.0, 0.01, 5.0, 0.5, 0.02)
-            self.mpc_controller = MPCController(vehicle, 10, 0.1)  # Initialize MPC controller
+            self.mpc_controller = MPCController(vehicle, 10, 0.1, 5)  # Initialize MPC controller
 
         except Exception as e:
             print(f"Error initializing PID controller: {e}")
@@ -190,8 +190,8 @@ class Controller:
 
     def autonomous_control(self, control, keys):
 
-        state = self.mpc_controller.extract_vehicle_state()
-        if not state:
+        state = self.mpc_controller.get_vehicle_state()
+        if state is None:
             print("Vehicle state not available")
             return
         try:
