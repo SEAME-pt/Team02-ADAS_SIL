@@ -75,9 +75,9 @@ class Detection:
     """
 
     # Define preprocessing transform (using torchvision)
-    transform_pipeline = transforms.Compose([
-        transforms.ToTensor(),
-    ])
+    # transform_pipeline = transforms.Compose([
+    #     transforms.ToTensor(),
+    # ])
 
     def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -93,83 +93,108 @@ class Detection:
         self.model = None
         self.ort_session = None
         self.is_onnx = False
+        self.lane_detector = LaneDetector()
         print(f"Detection initialized using {self.device}")
 
-        self.lane_detector = LaneDetector()
+
+        self.normalizer = transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225]
+        )
+        
+        # Update transform pipeline to match your test cases
+        self.transform_pipeline = transforms.Compose([
+            transforms.ToTensor(),
+            self.normalizer
+        ])
+
+    def preprocess_image(self, image, target_size=(256, 128)):
+        # Resize image
+        img = cv2.resize(image, target_size)
+        print(f"Image resized to: {img.shape}")
+        # 2. Enhance contrast within the ROI
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        print(f"Image converted to RGB: {img.shape}")
+        # Apply transforms
+        img_tensor = self.transform_pipeline(img).unsqueeze(0).to(self.device)
+        print(f"Image tensor shape after transforms: {img_tensor.shape}")
+        return img_tensor, img
 
     def load_model(self, camera):
         import onnxruntime as ort
             
-        model_path = "C:\\Users\\manue\\Documents\\SEA_ME\\ADAS-SIL-validation\\models\\lane_segmentation_model.onnx"  # Replace with your ONNX model path
+        model_path = "C:\\Users\\manue\\Documents\\SEA_ME\\ADAS-SIL-validation\\models\\lane_segmentation_model.onnx" 
             
         # Set compute options based on device
         providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] if self.device.type == 'cuda' else ['CPUExecutionProvider']
         self.ort_session = ort.InferenceSession(model_path, providers=providers)
         print(f"ONNX model loaded from {model_path}")
-        
-        width = camera.attributes["image_size_x"]
-        height = camera.attributes["image_size_y"]
-
-        # self.lane_detector = LaneDetector(int(width), int(height))
 
     def processing(self, img, camera):
 
         # Convert CARLA image to OpenCV format
         frame = self.convert_Carla_image(img)
+        print(f"converted image")
         
         # Create a copy of the original image to draw on
         display_img = frame.copy()
         
         try:
             # Step 1: Preprocess the frame using LaneDetector
-            frame = self.lane_detector.preProcess(frame)
-            preprocessed_data = self.process_input(frame)
+            # frame = self.lane_detector.preProcess(frame)
+            # prep rocessed_data = self.transform_pipeline(frame).unsqueeze(0).to(self.device)
+            input_tensor, processed_img = self.preprocess_image(frame)
             # Step 3: Run inference with ONNX
             input_name = self.ort_session.get_inputs()[0].name
             output_names = [output.name for output in self.ort_session.get_outputs()]
             
-            input_data = preprocessed_data.cpu().numpy()
+            input_data = input_tensor.cpu().numpy()
+            print(f"Input data shape: {input_data.shape}")
             # Run inference
             outputs = self.ort_session.run(output_names, {input_name: input_data})
+            print(f"ONNX inference completed, output shape: {outputs[0].shape}")
+            seg_mask = torch.from_numpy(outputs[0])
 
-            seg_mask = outputs[0]
-
-            # Handle different output formats
-            if len(seg_mask.shape) == 4:  # [batch, channels, height, width]
-                if seg_mask.shape[1] == 1:  # Single channel output
-                    # Create two channels from single channel (the second is inverse of first)
-                    channel1 = seg_mask[0, 0]  # Shape: [128, 256]
-                    channel2 = - channel1  # Inverse provides good separation
+            # # Handle different output formats
+            # if len(seg_mask.shape) == 4:  # [batch, channels, height, width]
+            #     if seg_mask.shape[1] == 1:  # Single channel output
+            #         # Create two channels from single channel (the second is inverse of first)
+            #         channel1 = seg_mask[0, 0]  # Shape: [128, 256]
+            #         channel2 = - channel1  # Inverse provides good separation
                     
-                    # Stack to create [2, 128, 256] format needed by C++ code
-                    proper_format = np.stack([channel1, channel2], axis=0)
-                    # print(f"Created 2-channel format from 1-channel: {proper_format.shape}")
+            #         # Stack to create [2, 128, 256] format needed by C++ code
+            #         proper_format = np.stack([channel1, channel2], axis=0)
+            #         # print(f"Created 2-channel format from 1-channel: {proper_format.shape}")
                 
-                elif seg_mask.shape[1] == 2:  # Already has two channels
-                    # Just remove batch dimension: [1, 2, 128, 256] -> [2, 128, 256]
-                    proper_format = seg_mask[0]
-                    # print(f"Using existing 2-channel format: {proper_format.shape}")
+            #     elif seg_mask.shape[1] == 2:  # Already has two channels
+            #         # Just remove batch dimension: [1, 2, 128, 256] -> [2, 128, 256]
+            #         proper_format = seg_mask[0]
+            #         # print(f"Using existing 2-channel format: {proper_format.shape}")
                 
-                else:
-                    print(f"Unexpected channel count: {seg_mask.shape[1]}")
-                    # Adapt as needed
-                    proper_format = seg_mask[0]
+            #     else:
+            #         print(f"Unexpected channel count: {seg_mask.shape[1]}")
+            #         # Adapt as needed
+            #         proper_format = seg_mask[0]
 
-            else:
-                # Handle unexpected format
-                proper_format = seg_mask
-                print(f"Unexpected shape: {seg_mask.shape}")
+            # else:
+            #     # Handle unexpected format
+            #     proper_format = seg_mask
+            #     print(f"Unexpected shape: {seg_mask.shape}")
 
-            channel1 = proper_format[0].flatten()  # Shape: [32768]
-            channel2 = proper_format[1].flatten()  # Shape: [32768]
 
-            # Concatenate to create the expected memory layout:
-            # [all of channel1 first, then all of channel2]
-            concatenated_data = np.concatenate([channel1, channel2])
+            # channel1 = proper_format[0].flatten()  # Shape: [32768]
+            # channel2 = proper_format[1].flatten()  # Shape: [32768]~
+            output_data = seg_mask[0].flatten()  # Shape: [32768]
 
-            # Make sure it's contiguous and float32
-            output_data = np.ascontiguousarray(concatenated_data, dtype=np.float32)
+            # # Concatenate to create the expected memory layout:
+            # # [all of channel1 first, then all of channel2]
+            # concatenated_data = np.concatenate([channel1, channel2])
+
+            # # Make sure it's contiguous and float32
+            output_data = np.ascontiguousarray(output_data, dtype=np.float32)
+            print(f"Output data set in LaneDetector, shape: {output_data.shape}")
             self.lane_detector.setOutputData(output_data)
+            print(f"AQUI")
             
             # Step 5: Postprocess to detect lanes
             self.lane_detector.postProcess(display_img)
@@ -178,29 +203,31 @@ class Detection:
             left_coeffs = self.lane_detector.left_coeffs
             right_coeffs = self.lane_detector.right_coeffs
 
-            # if left_coeffs and right_coeffs:
-            #     print(f"Left lane coefficients: {left_coeffs}")
-            #     print(f"Right lane coefficients: {right_coeffs}")
+            # # if left_coeffs and right_coeffs:
+            # #     print(f"Left lane coefficients: {left_coeffs}")
+            # #     print(f"Right lane coefficients: {right_coeffs}")
 
             
-            height, width, _ = display_img.shape
-
+            # height, width, _ = display_img.shape
+            print("AQUIIII")
             if left_coeffs and right_coeffs:
                 # Draw polynomial lanes on display image
                 display_img = self.draw_lane_polynomials(display_img, left_coeffs, right_coeffs)
             
             display_img = self.draw_roi_area(display_img)
+            print("AQUIIII")
 
-            binary_mask = (proper_format[0] > proper_format[1]).astype(np.uint8) * 255
+            binary_mask = (seg_mask[0] > 0.5).detach().cpu().numpy().astype(np.uint8) * 255
+            binary_mask = binary_mask.squeeze(0)
             # Get the dimensions of the original image
             
             # If needed, resize the mask to match original image dimensions
-            if binary_mask.shape != (height, width):
-                binary_mask = cv2.resize(binary_mask, (width, height), interpolation=cv2.INTER_NEAREST)
+            # if binary_mask.shape != (height, width):
+            #     binary_mask = cv2.resize(binary_mask, (width, height), interpolation=cv2.INTER_NEAREST)
             
         except Exception as e:
             print(f"Error in lane detection: {e}")
-            # Fallback visualization
+            # # Fallback visualization
             binary_mask = np.zeros_like(display_img)
 
         
@@ -230,7 +257,7 @@ class Detection:
             # Channel 2: non-lane probability (1.0 where not lane, 0.0 elsewhere)
             channel1 = (segmentation_mask > 127).astype(np.float32)
             channel2 = 1 - channel1
-            
+            print(f"Channel 1 shape: {channel1.shape}, Channel 2 shape: {channel2.shape}")  
             # Stack channels for visualization
             proper_format = np.stack([channel1, channel2], axis=0)
             
@@ -432,8 +459,8 @@ class Detection:
         
         Args:
             display_img: The image to draw on
-            left_coeffs: List of coefficients [a, b, c] for x = a*y^2 + b*y + c
-            right_coeffs: List of coefficients [a, b, c] for x = a*y^2 + b*y + c
+            left_coeffs: List of coefficients [a, b, c, d] for x = a*y^3 + b*y^2 + c*y + d
+            right_coeffs: List of coefficients [a, b, c, d] for x = a*y^3 + b*y^2 + c*y + d
             steps: Number of points to generate along each curve
             thickness: Line thickness
         
@@ -454,14 +481,24 @@ class Detection:
             ("Right", right_coeffs, (0, 255, 0))
         ]:
             if coeffs and len(coeffs) >= 3:
-                # Unpack coefficients
-                a, b, c = coeffs
+                # Handle either cubic (4 coeffs) or quadratic (3 coeffs) polynomials
+                if len(coeffs) >= 4:
+                    a, b, c, d = coeffs[:4]
+                    equation_text = f"{lane_type}: {a:.3f}y³ + {b:.3f}y² + {c:.3f}y + {d:.3f}"
+                else:
+                    # Fall back to quadratic if only 3 coefficients
+                    a, b, c = coeffs[:3]
+                    d = 0  # No cubic term
+                    equation_text = f"{lane_type}: {a:.3f}y² + {b:.3f}y + {c:.3f}"
                 
                 # Draw points along the curve - use coefficients directly
                 points = []
                 for y in y_points:
-                    # Calculate x using the polynomial equation directly
-                    x = int(a * (y**2) + b * y + c)
+                    # Calculate x using the polynomial equation with optional cubic term
+                    if len(coeffs) >= 4:
+                        x = int(a * (y**3) + b * (y**2) + c * y + d)
+                    else:
+                        x = int(a * (y**2) + b * y + c)
                     
                     # Only add points within image boundaries
                     if 0 <= x < w:
@@ -473,22 +510,34 @@ class Detection:
                         cv2.line(output, points[i], points[i+1], color, thickness)
                     
                     # Add text showing equation
-                    cv2.putText(output, f"{lane_type}: {a:.3f}y² + {b:.3f}y + {c:.3f}", 
+                    cv2.putText(output, equation_text, 
                             (10, 30 if lane_type == "Left" else 60), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         
         # If both lanes are detected, draw the middle lane
         if left_coeffs and right_coeffs and len(left_coeffs) >= 3 and len(right_coeffs) >= 3:
             # Average coefficients for center line
-            center_a = (left_coeffs[0] + right_coeffs[0]) / 2
-            center_b = (left_coeffs[1] + right_coeffs[1]) / 2
-            center_c = (left_coeffs[2] + right_coeffs[2]) / 2
+            # Handle either cubic or quadratic case
+            if len(left_coeffs) >= 4 and len(right_coeffs) >= 4:
+                center_a = (left_coeffs[0] + right_coeffs[0]) / 2  # Cubic term
+                center_b = (left_coeffs[1] + right_coeffs[1]) / 2  # Quadratic term
+                center_c = (left_coeffs[2] + right_coeffs[2]) / 2  # Linear term
+                center_d = (left_coeffs[3] + right_coeffs[3]) / 2  # Constant term
+            else:
+                # Fall back to quadratic if needed
+                center_a = (left_coeffs[0] + right_coeffs[0]) / 2  # Quadratic term
+                center_b = (left_coeffs[1] + right_coeffs[1]) / 2  # Linear term
+                center_c = (left_coeffs[2] + right_coeffs[2]) / 2  # Constant term
+                center_d = 0  # No cubic term
             
             # Draw center lane in red using same technique
             center_points = []
             for y in y_points:
                 # Calculate x using the average coefficients
-                x = int(center_a * (y**2) + center_b * y + center_c)
+                if len(left_coeffs) >= 4 and len(right_coeffs) >= 4:
+                    x = int(center_a * (y**3) + center_b * (y**2) + center_c * y + center_d)
+                else:
+                    x = int(center_a * (y**2) + center_b * y + center_c)
                 
                 if 0 <= x < w:
                     center_points.append((x, y))

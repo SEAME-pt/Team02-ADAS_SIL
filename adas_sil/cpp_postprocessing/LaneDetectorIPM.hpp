@@ -15,11 +15,11 @@
 #include "IPM.hpp"
 
 
-#define WIDTH 384
-#define HEIGHT 192
+// #define WIDTH 384
+// #define HEIGHT 192
 
-// #define WIDTH 256
-// #define HEIGHT 128
+#define WIDTH 256
+#define HEIGHT 128
 
 struct LaneResult {
   std::vector<double> left_coeffs;  // Polynomial coefficients (a, b, c) for left lane

@@ -75,10 +75,53 @@ PYBIND11_MODULE(lane_detector_py, m) {
         //     return mat_to_numpy(frame);
         // })
         .def("setOutputData", [](LaneDetector& self, py::array_t<float>& output_array) {
+            // Get buffer info
             py::buffer_info info = output_array.request();
+            
+            // Expected values
+            size_t expected_elements = HEIGHT * WIDTH;
+            size_t expected_size = expected_elements * sizeof(float);
+            
+            // Debug output
+            std::cout << "Python array info: dimensions=" << info.ndim 
+                    << ", shape=[";
+            for (size_t i = 0; i < info.ndim; i++) {
+                std::cout << info.shape[i] << (i < info.ndim - 1 ? ", " : "");
+            }
+            std::cout << "], size=" << info.size 
+                    << ", format=" << info.format << std::endl;
+            
+            // Validation checks
+            if (info.ndim != 1) {
+                throw std::runtime_error("Expected 1D array (flattened), got " + 
+                                        std::to_string(info.ndim) + "D");
+            }
+            
+            if (info.size != expected_elements) {
+                throw std::runtime_error("Array size mismatch: got " + 
+                                        std::to_string(info.size) + 
+                                        " elements, expected " + 
+                                        std::to_string(expected_elements));
+            }
+            
+            // Get pointer and sample data
             float* ptr = static_cast<float*>(info.ptr);
-            size_t expected_size = 2 * HEIGHT * WIDTH * sizeof(float);
-            self.setOutputData(ptr, expected_size);
+            
+            // Print sample of data (first 5 elements)
+            std::cout << "Data sample: [";
+            for (int i = 0; i < std::min(5, static_cast<int>(info.size)); i++) {
+                std::cout << ptr[i] << ", ";
+            }
+            std::cout << "...]" << std::endl;
+            
+            // Call the C++ function and track success
+            try {
+                self.setOutputData(ptr, expected_size);
+                std::cout << "setOutputData completed successfully" << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "C++ exception in setOutputData: " << e.what() << std::endl;
+                throw;
+            }
         })
         .def_property_readonly("left_coeffs", [](const LaneDetector& self) -> py::object {
             const cv::Mat& coeffs = self.getLeftCoeffs();

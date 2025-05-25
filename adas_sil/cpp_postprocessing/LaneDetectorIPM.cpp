@@ -12,10 +12,11 @@ LaneDetector::LaneDetector()
     // set kalman filter status to false
     kfInitialized = false;
     inputData = new float[3 * HEIGHT * WIDTH];
-    outputData = new float[2 * HEIGHT * WIDTH];
+    outputData = new float[1 * HEIGHT * WIDTH];
 
     std::memset(inputData, 0, 3 * HEIGHT * WIDTH * sizeof(float));
-    std::memset(outputData, 0, 2 * HEIGHT * WIDTH * sizeof(float));
+    std::memset(outputData, 0, 1 * HEIGHT * WIDTH * sizeof(float));
+    std::cout << "LaneDetector initialized with inputData and outputData buffers." << std::endl;
 }
 
 LaneDetector::~LaneDetector()
@@ -140,9 +141,7 @@ void LaneDetector::postProcess(cv::Mat& frame)
 
     for (int i = 0; i < total_pixels; i++)
     {
-        float p0     = outputData[i];
-        float p1     = outputData[total_pixels + i];
-        mask_data[i] = (p0 > p1) ? 255 : 0;
+        mask_data[i] = (outputData[i] > 0.5) ? 255 : 0;
     }
 
     // cv::Mat bev_mask = ipm.applyIPM(mask);

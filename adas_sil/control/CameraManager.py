@@ -23,17 +23,16 @@ class CameraManager:
         self.vehicle = vehicle
         self.rgb_cam = None
         self.sem_cam = None
+        self.rgb_detcam = None
         self.display = display
         self.detector = detector
 
         self.setup_cameras()
 
-        self.rgb_cam.listen(self.process_rgb_image)
-        self.sem_cam.listen(self.process_semantic_image)
-
-        # self.detector.load_model(self.rgb_detcam)
-        # self.rgb_detcam.listen(self.process_rgb_with_detection)
-
+        # self.rgb_cam.listen(self.process_rgb_image)
+        # self.sem_cam.listen(self.process_semantic_image)
+        self.detector.load_model(self.rgb_detcam)
+        self.rgb_detcam.listen(self.process_rgb_with_detection)
         self.rgb_surface = None
         self.lane_surface = None
         self.seg_surface = None
@@ -62,7 +61,7 @@ class CameraManager:
         self.sem_cam = self.world.spawn_actor(sem_bp, sem_transform, attach_to=self.vehicle, attachment_type=carla.AttachmentType.Rigid)
 
         #Cam to view detection 
-        # self.rgb_detcam = self.world.spawn_actor(rgb_bp, rgb_transform, attach_to=self.vehicle, attachment_type=carla.AttachmentType.Rigid)
+        self.rgb_detcam = self.world.spawn_actor(rgb_bp, rgb_transform, attach_to=self.vehicle, attachment_type=carla.AttachmentType.Rigid)
 
     def visualize_ipm_region(self, image):
         """Draw the source region that are  being transformed to bird's eye view"""
@@ -138,7 +137,7 @@ class CameraManager:
         
         # Convert BGR (OpenCV) to RGB (Pygame)
         lane_img = cv2.cvtColor(lane_img, cv2.COLOR_BGR2RGB)
-        # mask_img = cv2.cvtColor(mask_img, cv2.COLOR_BGR2RGB)
+        mask_img = cv2.cvtColor(mask_img, cv2.COLOR_GRAY2RGB)
         
         # Create pygame surfaces
         # self.rgb_surface = pygame.surfarray.make_surface(lane_img.swapaxes(0, 1))

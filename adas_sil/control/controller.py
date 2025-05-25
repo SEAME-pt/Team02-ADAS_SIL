@@ -1,7 +1,5 @@
-from importlib.util import MAGIC_NUMBER
 import sys
 import os
-import time
 import pygame
 
 from adas_sil.control.CameraManager import CameraManager
@@ -15,14 +13,6 @@ os.environ["PATH"] = opencv_bin + os.pathsep + os.environ["PATH"]
 
 carla_egg = "C:/Users/manue/Documents/SEA_ME/CARLA_0.9.10.1/WindowsNoEditor/PythonAPI/carla/dist/carla-0.9.10-py3.7-win-amd64.egg"
 sys.path.append(carla_egg)
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-try:
-    import cpp_postprocessing.build.pid_controller_py as pid_controller_py
-    # import cpp_postprocessing.build.mpc_controller_py as mpc_controller_py
-    print("Successfully imported controller modules")
-except ImportError as e:
-    print(f"Failed to import controller modules: {e}")
 
 import carla
 
@@ -47,7 +37,7 @@ class Controller:
             self.mpc_controller = MPCController(vehicle, 10, 0.1, 5)  # Initialize MPC controller
 
         except Exception as e:
-            print(f"Error initializing PID controller: {e}")
+            print(f"Error initializing controllers: {e}")
 
         # Video recording
             # # Create output directories
@@ -111,8 +101,8 @@ class Controller:
         
         # Stop autopilot to allow manual control
         self.vehicle.set_autopilot(False)
-        print("Manual control activated. Use WASD to drive.")
-        print("W: accelerate, S: brake, A/D: steer, SPACE: handbrake, Q: exit")
+        # print("Manual control activated. Use WASD to drive.")
+        # print("W: accelerate, S: brake, A/D: steer, SPACE: handbrake, Q: exit")
         
         try:
             self.running = True

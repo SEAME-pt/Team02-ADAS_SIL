@@ -5,7 +5,7 @@ import time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 try:
     import cpp_postprocessing.build.pid_controller_py as pid_controller_py
-    print("Successfully imported controller modules")
+    # print("Successfully imported controller modules")
 except ImportError as e:
     print(f"Failed to import controller modules: {e}")
 
@@ -14,7 +14,7 @@ class PIDController:
     def __init__(self, kp, ki, kd, throttle, dt):
         self.pid_controller = pid_controller_py.PidController()
         self.pid_controller.init(kp, ki, kd, throttle, dt)
-        print("PID controller initialized")
+        # print("PID controller initialized")
 
     def update(self, lane_error):
         # Get current time for PID computation

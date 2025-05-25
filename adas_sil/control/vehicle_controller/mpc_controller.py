@@ -12,7 +12,7 @@ sys.path.append(carla_egg)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 try:
     import cpp_postprocessing.build.mpc_controller_py as mpc_controller_py
-    print("Successfully imported MPC controller module")
+    # print("Successfully imported MPC controller module")
 except ImportError as e:
     print(f"Failed to import MPC controller module: {e}")
 
@@ -55,7 +55,7 @@ class MPCController:
 
             self.mpc_controller.setTargetVelocity(self.target_speed_ms)
 
-            print("MPC controller initialized")
+            # print("MPC controller initialized")
         except Exception as e:
             print(f"Error initializing MPC controller: {e}")
             self.mpc_controller = None
