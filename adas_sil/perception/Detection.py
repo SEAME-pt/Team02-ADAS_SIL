@@ -155,40 +155,7 @@ class Detection:
             print(f"ONNX inference completed, output shape: {outputs[0].shape}")
             seg_mask = torch.from_numpy(outputs[0])
 
-            # # Handle different output formats
-            # if len(seg_mask.shape) == 4:  # [batch, channels, height, width]
-            #     if seg_mask.shape[1] == 1:  # Single channel output
-            #         # Create two channels from single channel (the second is inverse of first)
-            #         channel1 = seg_mask[0, 0]  # Shape: [128, 256]
-            #         channel2 = - channel1  # Inverse provides good separation
-                    
-            #         # Stack to create [2, 128, 256] format needed by C++ code
-            #         proper_format = np.stack([channel1, channel2], axis=0)
-            #         # print(f"Created 2-channel format from 1-channel: {proper_format.shape}")
-                
-            #     elif seg_mask.shape[1] == 2:  # Already has two channels
-            #         # Just remove batch dimension: [1, 2, 128, 256] -> [2, 128, 256]
-            #         proper_format = seg_mask[0]
-            #         # print(f"Using existing 2-channel format: {proper_format.shape}")
-                
-            #     else:
-            #         print(f"Unexpected channel count: {seg_mask.shape[1]}")
-            #         # Adapt as needed
-            #         proper_format = seg_mask[0]
-
-            # else:
-            #     # Handle unexpected format
-            #     proper_format = seg_mask
-            #     print(f"Unexpected shape: {seg_mask.shape}")
-
-
-            # channel1 = proper_format[0].flatten()  # Shape: [32768]
-            # channel2 = proper_format[1].flatten()  # Shape: [32768]~
-            output_data = seg_mask[0].flatten()  # Shape: [32768]
-
-            # # Concatenate to create the expected memory layout:
-            # # [all of channel1 first, then all of channel2]
-            # concatenated_data = np.concatenate([channel1, channel2])
+            output_data = seg_mask[0].flatten()
 
             # # Make sure it's contiguous and float32
             output_data = np.ascontiguousarray(output_data, dtype=np.float32)
@@ -207,24 +174,15 @@ class Detection:
             # #     print(f"Left lane coefficients: {left_coeffs}")
             # #     print(f"Right lane coefficients: {right_coeffs}")
 
-            
-            # height, width, _ = display_img.shape
-            print("AQUIIII")
             if left_coeffs and right_coeffs:
                 # Draw polynomial lanes on display image
                 display_img = self.draw_lane_polynomials(display_img, left_coeffs, right_coeffs)
             
             display_img = self.draw_roi_area(display_img)
-            print("AQUIIII")
 
             binary_mask = (seg_mask[0] > 0.5).detach().cpu().numpy().astype(np.uint8) * 255
             binary_mask = binary_mask.squeeze(0)
-            # Get the dimensions of the original image
-            
-            # If needed, resize the mask to match original image dimensions
-            # if binary_mask.shape != (height, width):
-            #     binary_mask = cv2.resize(binary_mask, (width, height), interpolation=cv2.INTER_NEAREST)
-            
+
         except Exception as e:
             print(f"Error in lane detection: {e}")
             # # Fallback visualization

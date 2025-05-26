@@ -25,11 +25,11 @@ class Display:
         
         # Display lane mask on right side
         if lane_surface is not None:
-            self.display.blit(lane_surface, (390, 0))
+            self.display.blit(lane_surface, (512, 0))
         
         # Display seg mask below
         if seg_surface is not None:
-            self.display.blit(seg_surface, (0, 195))
+            self.display.blit(seg_surface, (0, 256))
 
         # if hasattr(self.detector, 'lane_points_vis'):
         #     lane_points_vis_rgb = cv2.cvtColor(self.detector.lane_points_vis, cv2.COLOR_BGR2RGB)
@@ -39,7 +39,7 @@ class Display:
 
             # Display bird's eye view on bottom-right
         if bev_surface is not None:
-            self.display.blit(bev_surface, (390, 195))
+            self.display.blit(bev_surface, (512, 256))
             
             # Add label
             font = pygame.font.SysFont('Arial', 24)

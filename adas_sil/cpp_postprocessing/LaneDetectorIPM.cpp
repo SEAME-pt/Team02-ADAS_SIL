@@ -120,7 +120,7 @@ void LaneDetector::postProcess(cv::Mat& frame)
         float nearDistance = 1.5f;       // meters
         float farDistance = 15.0f;       // meters
         float laneWidth = 7.0f;          // meters
-        bevSize = cv::Size(WIDTH, WIDTH);
+        bevSize = cv::Size(WIDTH * 2, WIDTH * 2);
         cv::Size origSize = cv::Size(WIDTH, HEIGHT);
         ipm.initialize(origSize, bevSize);
         ipm.calibrateFromCamera(cameraHeight, cameraPitch, horizontalFOV, verticalFOV,
@@ -547,7 +547,7 @@ void LaneDetector::createLanesIPM(std::vector<cv::Point> lanePoints,
     }
     
     // Process the binary mask to get lane polylines
-    std::vector<std::vector<cv::Point>> lanePolylines = processLaneMask(laneMask, 20, 30, 10);
+    std::vector<std::vector<cv::Point>> lanePolylines = processLaneMask(laneMask, 5, 10, 10);
     // std::cout << "Number of lane polylines after merging: " << lanePolylines.size() << std::endl;
     allPolylinesViz = frame.clone();
     std::vector<cv::Scalar> colors = {
