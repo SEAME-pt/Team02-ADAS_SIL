@@ -7,7 +7,7 @@ sys.path.append(carla_egg)
 import carla
 
 
-def setup_carla_environment(town='Town02'):
+def setup_carla_environment(town='Town04'):
 
     client = carla.Client('127.0.0.1', 2000)
     world = client.get_world()

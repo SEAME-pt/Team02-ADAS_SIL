@@ -42,8 +42,8 @@ class CameraManager:
     def setup_cameras(self):
         # RGB camera setup
         rgb_bp = self.world.get_blueprint_library().find('sensor.camera.rgb')
-        rgb_bp.set_attribute('image_size_x', '512')
-        rgb_bp.set_attribute('image_size_y', '256')
+        rgb_bp.set_attribute('image_size_x', '256')
+        rgb_bp.set_attribute('image_size_y', '128')
         rgb_bp.set_attribute("fov", str(105))
         rgb_location = carla.Location(2, 0, 1.5)
         rgb_rotation = carla.Rotation(-15, 0, 0)  # Forward-facing camera
@@ -52,8 +52,8 @@ class CameraManager:
         
         # Semantic segmentation camera setup
         sem_bp = self.world.get_blueprint_library().find('sensor.camera.semantic_segmentation')
-        sem_bp.set_attribute("image_size_x", '512')
-        sem_bp.set_attribute("image_size_y", '256')
+        sem_bp.set_attribute("image_size_x", '256')
+        sem_bp.set_attribute("image_size_y", '128')
         sem_bp.set_attribute("fov", str(105))
         sem_location = carla.Location(2, 0, 1.5)
         sem_rotation = carla.Rotation(-15, 0, 0)  # Same as RGB camera
@@ -99,7 +99,7 @@ class CameraManager:
         array_rgb = cv2.cvtColor(array_with_region, cv2.COLOR_BGR2RGB)
         
         # Create pygame surface
-        self.rgb_surface = pygame.surfarray.make_surface(array_rgb.swapaxes(0, 1))
+        # self.rgb_surface = pygame.surfarray.make_surface(array_rgb.swapaxes(0, 1))
         # Save frame to video if recording
         # if self.record_video:
         #     # Initialize VideoWriter on first frame
@@ -134,10 +134,11 @@ class CameraManager:
         
         # Process with detection model
         lane_img, mask_img = self.detector.processing(image, None)
-
+        print(f"Processed lane image shape: {lane_img.shape if lane_img is not None else 'None'}")
         bev_img = None
         try:
             # This will access the bev_image property from your binding
+            print(f"Aqui Campeao")
             bev_img = self.detector.lane_detector.bev_image
             print(f"BEV image shape: {bev_img.shape if bev_img is not None else 'None'}")
             bev_rgb = cv2.cvtColor(bev_img, cv2.COLOR_BGR2RGB)
@@ -150,8 +151,8 @@ class CameraManager:
         # mask_img = cv2.cvtColor(mask_img, cv2.COLOR_GRAY2RGB)
         
         # Create pygame surfaces
-        # self.rgb_surface = pygame.surfarray.make_surface(lane_img.swapaxes(0, 1))
-        # self.lane_surface = pygame.surfarray.make_surface(mask_img.swapaxes(0, 1))
+        self.rgb_surface = pygame.surfarray.make_surface(lane_img.swapaxes(0, 1))
+        self.lane_surface = pygame.surfarray.make_surface(mask_img.swapaxes(0, 1))
         
         # Save images periodically if needed
         # if image.frame % 60 == 0:
@@ -228,7 +229,7 @@ class CameraManager:
                         mid_coeffs = mid_coeffs.tolist()
                         
                     # Draw the middle lane polynomial
-                    bev_img = self.draw_lane_polynomial(bev_img, mid_coeffs, (0, 255, 255), 3)
+                    # bev_img = self.draw_lane_polynomial(bev_img, mid_coeffs, (0, 255, 255), 3)
                     
                     # Add text label for middle lane
                     cv2.putText(bev_img, "Mid Lane", (10, 30), 

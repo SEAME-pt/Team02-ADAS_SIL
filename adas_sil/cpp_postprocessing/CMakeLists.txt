@@ -17,8 +17,9 @@ set(EIGEN3_INCLUDE_DIR "C:/eigen-3.4.0/build")
 include_directories(${EIGEN3_INCLUDE_DIR})
 
 add_library(lane_processor STATIC
-    LaneDetectorIPM.cpp
-    IPM.cpp  # Include IPM in this target for convenience
+    LaneDetectorIPM_new.cpp
+    IPM.cpp
+    KalmanFilter.cpp
 )
 
 target_link_libraries(lane_processor

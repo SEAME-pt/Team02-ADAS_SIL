@@ -161,18 +161,18 @@ class Detection:
             output_data = np.ascontiguousarray(output_data, dtype=np.float32)
             print(f"Output data set in LaneDetector, shape: {output_data.shape}")
             self.lane_detector.setOutputData(output_data)
-            print(f"AQUI")
             
             # Step 5: Postprocess to detect lanes
             self.lane_detector.postProcess(display_img)
-            
+            print("Post-processing completed, lanes detected.")
             # Get lane coefficients if needed
             left_coeffs = self.lane_detector.left_coeffs
+            print(f"Left lane coefficients: {left_coeffs}")
             right_coeffs = self.lane_detector.right_coeffs
 
-            # # if left_coeffs and right_coeffs:
-            # #     print(f"Left lane coefficients: {left_coeffs}")
-            # #     print(f"Right lane coefficients: {right_coeffs}")
+
+            if left_coeffs and right_coeffs:
+                print(f"Right lane coefficients: {right_coeffs}")
 
             if left_coeffs and right_coeffs:
                 # Draw polynomial lanes on display image
@@ -213,25 +213,14 @@ class Detection:
             # Create the two channels the C++ code expects:
             # Channel 1: lane probability (1.0 where lane, 0.0 elsewhere)
             # Channel 2: non-lane probability (1.0 where not lane, 0.0 elsewhere)
-            channel1 = (segmentation_mask > 127).astype(np.float32)
-            channel2 = 1 - channel1
-            print(f"Channel 1 shape: {channel1.shape}, Channel 2 shape: {channel2.shape}")  
-            # Stack channels for visualization
-            proper_format = np.stack([channel1, channel2], axis=0)
-            
-            # Flatten and concatenate channels as required by C++ code
-            # The C++ code expects: [all_channel1_values, all_channel2_values]
-            channel1_flat = proper_format[0].flatten()
-            channel2_flat = proper_format[1].flatten()
-            concatenated_data = np.concatenate([channel1_flat, channel2_flat])
-            
-            # Make sure it's contiguous and float32
-            output_data = np.ascontiguousarray(concatenated_data, dtype=np.float32)
-            expected_size = width * height * 2
+            output_data = segmentation_mask.flatten()
+            output_data = np.ascontiguousarray(output_data, dtype=np.float32)
+            expected_size = width * height
             if output_data.size != expected_size:
                 print(f"Warning: Output data size {output_data.size} doesn't match expected {expected_size}")
                 return display_img, left_points, right_points, bev_img
             # Set data and run lane detection
+            bev_img = None
             self.lane_detector.setOutputData(output_data)
             self.lane_detector.postProcess(display_img)
             
@@ -277,7 +266,6 @@ class Detection:
             # # Optionally draw ROI area
             # display_img = self.draw_roi_area(display_img)
              # Get the BEV image directly after postProcess
-            bev_img = None
             try:
                 # This will access the bev_image property from your binding
                 bev_img = self.lane_detector.bev_image

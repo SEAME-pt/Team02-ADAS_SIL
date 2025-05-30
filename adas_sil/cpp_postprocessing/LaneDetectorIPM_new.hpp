@@ -14,6 +14,8 @@
 
 #include "IPM.hpp"
 
+#include "KalmanFilter.hpp"
+
 
 // #define WIDTH 384
 // #define HEIGHT 192
@@ -38,32 +40,34 @@ class LaneDetector
     void* outputDevice;
     float* inputData;
     float* outputData;
-    cv::Mat cameraMatrix;
-    cv::Mat distCoeffs;
-    cv::Mat map1, map2;
-
-    std::vector<cv::Point> prevLeftPoints;
-    std::vector<cv::Point> prevRightPoints;
     
+    IPM *ipm;
+    KalmanFilter *kalmanFilter;
+    cv::Size bevSize;
+    cv::Mat bev_image;
+
+    std::vector<cv::Point> prevLeftCurve;
+    std::vector<cv::Point> prevRightCurve;
+
+    cv::Mat allPolylinesViz_;
+    int frameWidth_;
+    int frameHeight_;
+    
+    int leftLaneLastUpdatedFrame = 0;
+    int rightLaneLastUpdatedFrame = 0;
+    int currentFrame = 0;
+    const int MAX_LANE_MEMORY_FRAMES = 25;
+
     cv::Mat leftCoeffs;
     cv::Mat rightCoeffs;
     cv::Mat midCoeffs;
 
-
-    const int FRAME_SKIP;
-    cv::KalmanFilter leftLaneKF, rightLaneKF;
-    bool kfInitialized = false;
+   
     double laneWidthEstimate = 0.0;
     bool firstFrame;
     int frame_count;
 
-    std::deque<std::vector<cv::Point>> leftLaneHistory;
-    std::deque<std::vector<cv::Point>> rightLaneHistory;
-    std::vector<cv::Point> prevLeftCurve;
-    std::vector<cv::Point> prevRightCurve;
-    std::vector<cv::Point> prevMidCurve;
-    cv::Point prevMidPoint = cv::Point(-1, -1);
-    const size_t historySize = 5;
+
 
     std::vector<cv::Point> allLanePoints;
     cv::Mat lanePointsVisualization;
@@ -71,23 +75,19 @@ class LaneDetector
     float laneError = 0.0f;
 
 
-    IPM ipm;                // inverse-perspective mapper
-    cv::Size bevSize;
-    cv::Mat bev_image;       // BEV resolution
-
     bool ipm_initialized = false;
     cv::Mat original_frame;
     int frameWidth = WIDTH;  // Ensure these are initialized
     int frameHeight = HEIGHT;
 
-    cv::Mat allPolylinesViz;
+
+
 
   public:
     LaneDetector();
     ~LaneDetector();
 
-    void detect(cv::Mat& frame);
-    void run();
+ 
     cv::Mat preProcess(const cv::Mat& frame);
     void postProcess(cv::Mat& frame);
 
@@ -97,66 +97,52 @@ class LaneDetector
       std::memcpy(outputData, data, size); 
     }
     
-    const cv::Mat& getLeftCoeffs() const { return leftCoeffs; }
-    const cv::Mat& getRightCoeffs() const { return rightCoeffs; }
-    const std::vector<cv::Point>& getLeftPoints() const { return prevLeftPoints; }
-    const std::vector<cv::Point>& getRightPoints() const { return prevRightPoints; }
     const std::vector<cv::Point>& getAllLanePoints() const { return allLanePoints; }
     cv::Mat getLanePointsVisualization() const { return lanePointsVisualization; }
-    cv::Mat getBevImage() const { 
-      std::cout << "Returning BEV image with size: " << bev_image.size() << std::endl;
-      return bev_image; }
-    cv::Mat getPolyLines() const { return allPolylinesViz; }
-
+    
     void visualizeBothViews(cv::Mat& display_frame);
     
     static const int getWIDTH() { return WIDTH; }
     static const int getHEIGHT() { return HEIGHT; }
-
-    const float getLaneError() const { return laneError; }
-
+    
+    
+    
+    const cv::Mat& getLeftCoeffs() const { return leftCoeffs; }
+    const cv::Mat& getRightCoeffs() const { return rightCoeffs; }
     cv::Mat getMidCoeffs() const { return midCoeffs; }
-
-    // void initIPM(const std::vector<cv::Point2f>& srcPts,
-    //   const cv::Size& bevSize);
+    
+    const float getLaneError() const { return laneError; }
+    cv::Mat getBevImage() const { return bev_image; }
+    cv::Mat getPolyLines() const { return allPolylinesViz_; }
 
   private:
 
-    cv::Mat regionOfInterest(const cv::Mat& img,
-    const std::vector<cv::Point>& vertices);
     cv::Mat polyfit(const cv::Mat& y_vals, const cv::Mat& x_vals, int degree);
 
+    std::vector<std::vector<cv::Point>> clusterLaneMask(const cv::Mat& laneMask, int kernelSize, int minArea, int maxLanes);
+    void createLanesIPM(std::vector<cv::Point> lanePoints, cv::Mat& frame);
     void mergeLaneComponents(std::vector<std::vector<cv::Point>>& lanePolylines, 
       float maxHorizontalDist, float minOverlapRatio);
-    std::vector<std::vector<cv::Point>> LaneDetector::processLaneMask(const cv::Mat& laneMask, int kernelSize, int minArea, int maxLanes);
-    void createLanesIPM(std::vector<cv::Point> lanePoints,
-      cv::Mat& frame);
-    void createLanes(std::vector<cv::Point> lanes, cv::Mat& frame);
+    
+    void drawPolyLanes(std::vector<std::vector<cv::Point>> lanePolylines);
+
+    float calculateLaneDistance(const std::vector<cv::Point>& lane1, const std::vector<cv::Point>& lane2);
+    bool validateLaneSeparation(const std::vector<std::vector<cv::Point>>& lanePolylines, float minLaneWidth);
+    void checkPredicedCurve(std::vector<cv::Point>& predictedCurve, const std::vector<cv::Point>& realLane, bool isLeftLane);
+    void defineTrajectoryCurve(std::vector<cv::Point>& midCurve, std::vector<cv::Point>& leftCurve, std::vector<cv::Point>& rightCurve);
+    void createMidPointError(std::vector<cv::Point>& midCurve, cv::Mat frame);
+
 
     void drawLanes(cv::Mat& frame, 
       const std::vector<cv::Point>& leftCurve, 
       const std::vector<cv::Point>& rightCurve);
 
-    int cluster2DPoints(const std::vector<cv::Point>& points, 
-        std::vector<std::vector<cv::Point>>& clusters,
-        float distanceThreshold);
 
     void clusterLanePoints(const std::vector<cv::Point>& points, 
       std::vector<cv::Point>& leftPoints,
       std::vector<cv::Point>& rightPoints,
       cv::Mat& frame);
 
-    double estimateCurvature(const std::vector<cv::Point>& points);
-    void clusterLanePointsOnCurve(const std::vector<cv::Point>& points, 
-      std::vector<cv::Point>& leftPoints,
-      std::vector<cv::Point>& rightPoints);
+    bool checkIfLeftLane(const std::vector<std::vector<cv::Point>> &lanePolylines);
 
-    std::vector<cv::Point> fitCurveToPoints(const std::vector<cv::Point>& points, cv::Mat& frame);
-    void initKalmanFilters(const std::vector<cv::Point>& leftCurve, 
-      const std::vector<cv::Point>& rightCurve);
-
-    void sendCoefs(const std::vector<cv::Point>& leftCurve,
-        const std::vector<cv::Point>& rightCurve);
-
-    void computeMidLanePolynomial();
-};  
+};

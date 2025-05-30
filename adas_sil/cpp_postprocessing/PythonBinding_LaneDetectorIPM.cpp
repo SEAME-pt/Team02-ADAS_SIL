@@ -2,7 +2,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <opencv2/opencv.hpp>
-#include "LaneDetectorIPM.hpp"
+#include "LaneDetectorIPM_new.hpp"
 
 namespace py = pybind11;
 
@@ -123,61 +123,135 @@ PYBIND11_MODULE(lane_detector_py, m) {
                 throw;
             }
         })
+        // Fix for left_coeffs
         .def_property_readonly("left_coeffs", [](const LaneDetector& self) -> py::object {
-            const cv::Mat& coeffs = self.getLeftCoeffs();
-            if (coeffs.empty()) {
+            try {
+                const cv::Mat& coeffs = self.getLeftCoeffs();
+                
+                // Proper check for empty or invalid matrix
+                if (coeffs.empty() || !coeffs.data) {
+                    return py::none();
+                }
+                
+                py::list coeff_list;
+                
+                // Handle column vector (common for polynomial coefficients)
+                if (coeffs.cols == 1) {
+                    for (int i = 0; i < coeffs.rows; i++) {
+                        coeff_list.append(coeffs.at<double>(i, 0));
+                    }
+                }
+                // Handle row vector
+                else if (coeffs.rows == 1) {
+                    for (int i = 0; i < coeffs.cols; i++) {
+                        coeff_list.append(coeffs.at<double>(0, i));
+                    }
+                }
+                // Handle unexpected matrix shape
+                else {
+                    // Just get the first row as a fallback
+                    for (int i = 0; i < coeffs.cols; i++) {
+                        coeff_list.append(coeffs.at<double>(0, i));
+                    }
+                }
+                std::cout << "Left coefficients (binding): " << coeff_list << std::endl;
+                return coeff_list;
+            }
+            catch (const cv::Exception& e) {
+                std::cerr << "OpenCV error in left_coeffs binding: " << e.what() << std::endl;
                 return py::none();
             }
-            
-            py::list coeff_list;
-            for (int i = 0; i < coeffs.rows; i++) {
-                coeff_list.append(coeffs.at<double>(i));
+            catch (const std::exception& e) {
+                std::cerr << "Error in left_coeffs binding: " << e.what() << std::endl;
+                return py::none();
             }
-            return coeff_list;
         })
-        
+
         // Fix for right_coeffs
         .def_property_readonly("right_coeffs", [](const LaneDetector& self) -> py::object {
-            const cv::Mat& coeffs = self.getRightCoeffs();
-            if (coeffs.empty()) {
+            try {
+                const cv::Mat& coeffs = self.getRightCoeffs();
+                
+                // Proper check for empty or invalid matrix
+                if (coeffs.empty() || !coeffs.data) {
+                    return py::none();
+                }
+                
+                py::list coeff_list;
+                
+                // Handle column vector (common for polynomial coefficients)
+                if (coeffs.cols == 1) {
+                    for (int i = 0; i < coeffs.rows; i++) {
+                        coeff_list.append(coeffs.at<double>(i, 0));
+                    }
+                }
+                // Handle row vector
+                else if (coeffs.rows == 1) {
+                    for (int i = 0; i < coeffs.cols; i++) {
+                        coeff_list.append(coeffs.at<double>(0, i));
+                    }
+                }
+                // Handle unexpected matrix shape
+                else {
+                    // Just get the first row as a fallback
+                    for (int i = 0; i < coeffs.cols; i++) {
+                        coeff_list.append(coeffs.at<double>(0, i));
+                    }
+                }
+                
+                return coeff_list;
+            }
+            catch (const cv::Exception& e) {
+                std::cerr << "OpenCV error in right_coeffs binding: " << e.what() << std::endl;
                 return py::none();
             }
-            
-            py::list coeff_list;
-            for (int i = 0; i < coeffs.rows; i++) {
-                coeff_list.append(coeffs.at<double>(i));
+            catch (const std::exception& e) {
+                std::cerr << "Error in right_coeffs binding: " << e.what() << std::endl;
+                return py::none();
             }
-            return coeff_list;
         })
-        
         // Fix for midCoeffs
         .def_property_readonly("midCoeffs", [](const LaneDetector& self) -> py::object {
-            cv::Mat coeffs = self.getMidCoeffs();
-            if (coeffs.empty()) {
+            try {
+                cv::Mat coeffs = self.getMidCoeffs();
+                
+                // Proper check for empty or invalid matrix
+                if (coeffs.empty() || !coeffs.data) {
+                    return py::none();
+                }
+                
+                py::list coeff_list;
+                
+                // Handle column vector (common for polynomial coefficients)
+                if (coeffs.cols == 1) {
+                    for (int i = 0; i < coeffs.rows; i++) {
+                        coeff_list.append(coeffs.at<double>(i, 0));
+                    }
+                }
+                // Handle row vector
+                else if (coeffs.rows == 1) {
+                    for (int i = 0; i < coeffs.cols; i++) {
+                        coeff_list.append(coeffs.at<double>(0, i));
+                    }
+                }
+                // Handle unexpected matrix shape
+                else {
+                    // Just get the first row as a fallback
+                    for (int i = 0; i < coeffs.cols; i++) {
+                        coeff_list.append(coeffs.at<double>(0, i));
+                    }
+                }
+                
+                return coeff_list;
+            }
+            catch (const cv::Exception& e) {
+                std::cerr << "OpenCV error in midCoeffs binding: " << e.what() << std::endl;
                 return py::none();
             }
-            
-            py::list coeff_list;
-            for (int i = 0; i < coeffs.rows; i++) {
-                coeff_list.append(coeffs.at<double>(i));
+            catch (const std::exception& e) {
+                std::cerr << "Error in midCoeffs binding: " << e.what() << std::endl;
+                return py::none();
             }
-            return coeff_list;
-        }, "Mid-lane polynomial coefficients (3rd degree)")
-        .def_property_readonly("left_points", [](const LaneDetector& self) {
-            std::vector<py::tuple> points;
-            const std::vector<cv::Point>& leftPoints = self.getLeftPoints();
-            for (const auto& pt : leftPoints) {
-                points.push_back(point_to_tuple(pt));
-            }
-            return points;
-        })
-        .def_property_readonly("right_points", [](const LaneDetector& self) {
-            std::vector<py::tuple> points;
-            const std::vector<cv::Point>& rightPoints = self.getRightPoints();
-            for (const auto& pt : rightPoints) {
-                points.push_back(point_to_tuple(pt));
-            }
-            return points;
         })
         .def_property_readonly("all_lane_points", [](const LaneDetector& self) {
             std::vector<py::tuple> points;
@@ -189,6 +263,7 @@ PYBIND11_MODULE(lane_detector_py, m) {
         })
         .def_property_readonly("bev_image", [](const LaneDetector& self) {
             cv::Mat bev = self.getBevImage();
+            std::cout << "PAssei aqui" << std::endl;
             if (bev.empty()) {
                 throw std::runtime_error("BEV image not available");
             }

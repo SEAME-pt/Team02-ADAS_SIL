@@ -130,6 +130,7 @@ class Controller:
                             traffic_light.set_state(carla.TrafficLightState.Green)
                     
                         # Apply the control to the vehicle
+                    print (f"Control: Throttle={control.throttle}, Brake={control.brake}, Steer={control.steer}")
                     self.vehicle.apply_control(control)
                 
                     # Update the display to show both camera views

@@ -122,7 +122,7 @@ void LaneDetector::postProcess(cv::Mat& frame)
         float laneWidth = 7.0f;          // meters
         bevSize = cv::Size(WIDTH * 2, WIDTH * 2);
         cv::Size origSize = cv::Size(WIDTH, HEIGHT);
-        ipm.initialize(origSize, bevSize);
+        ipm.init(origSize, bevSize);
         ipm.calibrateFromCamera(cameraHeight, cameraPitch, horizontalFOV, verticalFOV,
                                 nearDistance, farDistance, laneWidth);
         ipm_initialized = true;
@@ -583,7 +583,7 @@ void LaneDetector::createLanesIPM(std::vector<cv::Point> lanePoints,
     float maxHorizontalDistance = frame.cols * 0.05; // 5% of frame width
     mergeLaneComponents(lanePolylines, maxHorizontalDistance, 0.0);
     
-
+    std::cout << "Number of lane polylines before merging: " << lanePolylines.size() << std::endl;
     // Take only the largest 2 components after merging
     if (lanePolylines.size() > 2) {
         // Sort by number of points (largest first)
@@ -593,11 +593,10 @@ void LaneDetector::createLanesIPM(std::vector<cv::Point> lanePoints,
             });
         lanePolylines.resize(2);
     }
-
+    std::cout << "Number of lane polylines after merging: " << lanePolylines.size() << std::endl;
     section_end = std::chrono::steady_clock::now();
     timings["1. Binary mask"] = std::chrono::duration_cast<std::chrono::microseconds>(section_end - section_start).count() / 1000.0;
     
-
     section_start = std::chrono::steady_clock::now();
 
     // If we found exactly 2 lanes, use them directly
@@ -1473,7 +1472,7 @@ static std::vector<cv::Point> filterPoints(const std::vector<cv::Point>& points,
         cv::Point(topLeftX, topY)
     };
     
-    cv::polylines(frame, std::vector<std::vector<cv::Point>>{trapezoid}, true, cv::Scalar(0, 255, 255), 2);
+    // cv::polylines(frame, std::vector<std::vector<cv::Point>>{trapezoid}, true, cv::Scalar(0, 255, 255), 2);
     
     // Density filtering: require at least 2 neighbors within a radius (reduced from 3)
     float radius = width * 0.03f;  // Increased from 0.025f
