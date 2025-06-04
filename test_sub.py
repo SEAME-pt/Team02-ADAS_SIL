@@ -14,7 +14,7 @@ def main():
     config = zenoh.Config()
     
     # # Connect to the publisher's IP address
-    config.insert_json5("connect/endpoints", '["tcp/100.117.122.95:7447"]')
+    config.insert_json5("connect/endpoints", '["tcp/100.117.122.95:7447", "tcp/100.117.122.95:7450"]')
     
     # # Enable peer discovery
     # config.insert_json5("scouting/multicast/enabled", "true")
@@ -23,7 +23,7 @@ def main():
     session = zenoh.open(config)
     
     # Subscribe to the test/message topic
-    key = "carla/frame"
+    key = "carla/frame/debug"
     subscriber = session.declare_subscriber(key, message_handler)
     
     print(f"Subscribed to '{key}'")
