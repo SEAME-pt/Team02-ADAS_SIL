@@ -8,13 +8,12 @@ import queue
 import signal
 
 # Create a global queue for images
-image_queue = queue.Queue(maxsize=10)  # Limit queue size to avoid memory issues
+image_queue = queue.Queue(maxsize=15)  # Limit queue size to avoid memory issues
 display_active = True
 display_window_name = "CARLA Camera Feed"
 
 def message_handler(sample):
     """Process incoming Zenoh messages with camera frames"""
-    print("Message received, processing...")
     try:
         # Get payload as string or bytes
         if hasattr(sample.payload, 'as_string'):
@@ -27,15 +26,12 @@ def message_handler(sample):
         # Decode from base64
         try:
             img_bytes = base64.b64decode(base64_str)
-            print(f"Decoded to {len(img_bytes)} bytes of image data")
         except Exception as e:
             print(f"Base64 decoding failed: {e}")
             return
         
-        # Convert to numpy and decode image
         img_data = np.frombuffer(img_bytes, dtype=np.uint8)
         
-        # Decode with explicit error handling
         try:
             img = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
             if img is None:
@@ -43,15 +39,9 @@ def message_handler(sample):
                 return
                 
             print(f"Successfully decoded image: {img.shape}")
-            
-            # Add to queue for main thread to display
             try:
-                # Use put_nowait to avoid blocking the Zenoh callback
                 image_queue.put(img, block=False)
-                print("Added image to display queue")
             except queue.Full:
-                print("Queue full, dropping oldest frame")
-                # If queue is full, remove oldest item and add new one
                 try:
                     image_queue.get_nowait()  # Remove oldest
                     image_queue.put(img, block=False)  # Add new
