@@ -1,5 +1,3 @@
-
-
 import zenoh
 import time
 import sys
