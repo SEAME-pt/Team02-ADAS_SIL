@@ -7,4 +7,5 @@ onnx
 onnxruntime
 pygame
 numpy
-eclipse-zenoh
+carla
+eclipse-zenoh==1.3.0
