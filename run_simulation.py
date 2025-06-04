@@ -92,7 +92,7 @@ def setup_carla_environment(num_traffic_vehicles = 150):
 
 def main():
     # Run your simulation
-    client, world, vehicle, camera = setup_carla_environment(num_traffic_vehicles=0)
+    client, world, vehicle, camera = setup_carla_environment(num_traffic_vehicles=150)
 
     config = zenoh.Config()
     
