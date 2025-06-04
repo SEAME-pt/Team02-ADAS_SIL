@@ -15,11 +15,9 @@ import signal
 image_queue = queue.Queue(maxsize=10)  # Limit queue size to avoid memory issues
 display_active = True
 display_window_name = "CARLA Camera Feed"
-
 def message_handler(sample):
     """Process incoming Zenoh messages with camera frames"""
-    message = f"Message received from subscriber at {time.strftime('%H:%M:%S')}"
-    print(message)
+    print("Message received, processing...")
     try:
         # Get payload as string or bytes
         if hasattr(sample.payload, 'as_string'):
@@ -27,9 +25,12 @@ def message_handler(sample):
         else:
             base64_str = sample.payload.decode('utf-8')
         
+        print(f"Received data length: {len(base64_str)}")
+        
         # Decode from base64
         try:
             img_bytes = base64.b64decode(base64_str)
+            print(f"Decoded to {len(img_bytes)} bytes of image data")
         except Exception as e:
             print(f"Base64 decoding failed: {e}")
             return
@@ -43,11 +44,15 @@ def message_handler(sample):
             if img is None:
                 print("cv2.imdecode returned None")
                 return
+                
+            print(f"Successfully decoded image: {img.shape}")
             
             # Add to queue instead of displaying directly
             try:
                 image_queue.put(img, timeout=0.1)
+                print("Added image to display queue")
             except queue.Full:
+                print("Queue full, skipping frame")
                 # Queue is full, skip this frame
                 pass
                 
@@ -58,22 +63,38 @@ def message_handler(sample):
         print(f"Error processing image: {e}")
         import traceback
         traceback.print_exc()
-
 def display_thread_function():
     """Thread to handle displaying images from the queue"""
     global display_active
     
     print("Display thread started")
+    frame_counter = 0
     
     while display_active:
         try:
             # Get image from queue with timeout
             img = image_queue.get(timeout=0.1)
+            frame_counter += 1
+            
+            print(f"Got frame #{frame_counter} from queue, size: {img.shape}")
             
             # Display the image - window already exists
             if img is not None and img.shape[0] > 0 and img.shape[1] > 0:
-                cv2.imshow(display_window_name, img)
-                # Note: We don't call waitKey() here - that happens in main thread
+                # Make a copy to avoid potential memory issues
+                display_img = img.copy()
+                
+                # Add frame counter to image
+                cv2.putText(display_img, f"Frame: {frame_counter}", (10, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                
+                # Use this to force window update - critical fix!
+                cv2.imshow(display_window_name, display_img)
+                print(f"Displayed frame #{frame_counter}")
+                
+                # Save occasional frames to verify content
+                if frame_counter % 30 == 0:  # Save every 30th frame
+                    cv2.imwrite(f"frame_{frame_counter}.jpg", display_img)
+                    print(f"Saved frame_{frame_counter}.jpg")
             else:
                 print("Received invalid image")
                 
@@ -84,6 +105,8 @@ def display_thread_function():
             pass
         except Exception as e:
             print(f"Display error in loop: {e}")
+            import traceback
+            traceback.print_exc()
             time.sleep(0.01)
 
 def signal_handler(sig, frame):
@@ -139,7 +162,7 @@ def main():
     try:
         while display_active:
             # Process any pending UI events and keep window responsive
-            key = cv2.waitKey(100)  # Short timeout keeps UI responsive
+            key = cv2.waitKey(1)  # Short timeout keeps UI responsive
             
             # Allow exiting with 'q' key
             if key == ord('q'):
