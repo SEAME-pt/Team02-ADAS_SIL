@@ -48,7 +48,7 @@ def frame_subscriber_handler(sample):
 def debug_subscriber_handler(sample):
     """Process incoming Zenoh messages with camera frames"""
     try:
-        debug = sample.payload()
+        debug = sample.payload.to_bytes()
         
         print(f"Received data length: {len(debug)}")
         
