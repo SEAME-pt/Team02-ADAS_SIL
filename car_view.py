@@ -113,7 +113,7 @@ def main():
     config = zenoh.Config()
     
     # Connect to the publisher's IP address
-    config.insert_json5(zenoh.config.CONNECT_KEY, "tcp/100.117.122.95:7447")
+    config.insert_json5(zenoh.config.CONNECT_KEY, '["tcp/100.117.122.95:7447"]')
     
     config.insert_json5("scouting/multicast/enabled", "true")
 
