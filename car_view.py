@@ -18,6 +18,8 @@ display_window_name = "CARLA Camera Feed"
 
 def message_handler(sample):
     """Process incoming Zenoh messages with camera frames"""
+    message = f"Message received from subscriber at {time.strftime('%H:%M:%S')}"
+    print(message)
     try:
         # Get payload as string or bytes
         if hasattr(sample.payload, 'as_string'):
@@ -107,7 +109,7 @@ def main():
     cv2.namedWindow(display_window_name, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(display_window_name, 800, 600)
     cv2.imshow(display_window_name, test_img)
-    cv2.waitKey(1)  # This is important to actually display the window
+    cv2.waitKey(1)
     
     # Start display thread - which now only updates the existing window
     display_thread = threading.Thread(target=display_thread_function)
@@ -122,7 +124,7 @@ def main():
     
     # Enable peer discovery
     config.insert_json5("scouting/multicast/enabled", "true")
-    
+
     print("Initializing Zenoh subscriber...")
     session = zenoh.open(config)
     

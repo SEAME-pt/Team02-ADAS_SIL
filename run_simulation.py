@@ -189,6 +189,8 @@ def main():
         speed_str = str(get_speed())
         pub_frame.put(base64_data)
         pub_speed.put(speed_str)
+        message = f"Message send from publisher at {time.strftime('%H:%M:%S')}"
+        print(message)
     
     camera.listen(camera_callback)
 
