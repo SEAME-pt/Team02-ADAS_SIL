@@ -126,7 +126,6 @@ def main():
     subscriber_frame = session.declare_subscriber(frame_key, frame_subscriber_handler)
     subscriber_debug = session.declare_subscriber(debug_key, debug_subscriber_handler)
     
-    print(f"Subscribed to '{key}'")
     print("Waiting for images... (Press CTRL+C to exit)")
     
     try:
