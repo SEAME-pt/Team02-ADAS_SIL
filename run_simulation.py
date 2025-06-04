@@ -181,7 +181,7 @@ def main():
         array = np.reshape(array, (image.height, image.width, 4))
         array = array[:, :, :3]
         
-        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 85]
+        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 30]
         _, encoded_image = cv2.imencode('.jpg', array, encode_param)
         
         image_bytes = encoded_image.tobytes()

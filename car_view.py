@@ -7,8 +7,8 @@ import cv2
 import queue
 import signal
 
-frame_queue = queue.Queue(maxsize=15)
-debug_queue = queue.Queue(maxsize=15)
+frame_queue = queue.Queue(maxsize=5)
+debug_queue = queue.Queue(maxsize=5)
 display_active = True
 display_window_name = "CARLA Camera Feed"
 
