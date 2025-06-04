@@ -15,11 +15,7 @@ display_window_name = "CARLA Camera Feed"
 def message_handler(sample):
     """Process incoming Zenoh messages with camera frames"""
     try:
-        # Get payload as string or bytes
-        if hasattr(sample.payload, 'as_string'):
-            base64_str = sample.payload.as_string()
-        else:
-            base64_str = sample.payload.decode('utf-8')
+        base64_str = sample.payload.to_string()
         
         print(f"Received data length: {len(base64_str)}")
         
