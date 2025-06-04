@@ -67,16 +67,12 @@ def signal_handler(sig, frame):
 def main():
     global display_active
     
-    # Register signal handler for clean shutdown
     signal.signal(signal.SIGINT, signal_handler)
     
-    # Create window in main thread
-    print("Creating window in main thread...")
     test_img = np.zeros((600, 800, 3), dtype=np.uint8)
     cv2.putText(test_img, "Waiting for images...", (50, 300), 
                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
     
-    # Initialize OpenCV window system
     cv2.namedWindow(display_window_name, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(display_window_name, 800, 600)
     cv2.imshow(display_window_name, test_img)
@@ -108,15 +104,12 @@ def main():
             except queue.Empty:
                 pass
             
-            # Process any pending UI events - CRITICAL for displaying images
             key = cv2.waitKey(1)
             
-            # Allow exiting with 'q' key
             if key == ord('q'):
                 display_active = False
                 break
             
-            # Short sleep to prevent high CPU usage
             time.sleep(0.01)
             
     except KeyboardInterrupt:
