@@ -23,7 +23,7 @@ def main():
     session = zenoh.open(config)
     
     # Subscribe to the test/message topic
-    key = "carla/frame/debug"
+    key = "carla/debug"
     subscriber = session.declare_subscriber(key, message_handler)
     
     print(f"Subscribed to '{key}'")
