@@ -63,6 +63,7 @@ def message_handler(sample):
         print(f"Error processing image: {e}")
         import traceback
         traceback.print_exc()
+
 def display_thread_function():
     """Thread to handle displaying images from the queue"""
     global display_active
@@ -123,6 +124,10 @@ def main():
     # Register signal handler for clean shutdown
     signal.signal(signal.SIGINT, signal_handler)
     
+    # Initialize OpenCV window system with explicit thread
+    print("Initializing OpenCV window system...")
+    cv2.startWindowThread()
+    
     # Create window in main thread
     print("Creating window in main thread...")
     test_img = np.zeros((600, 800, 3), dtype=np.uint8)
@@ -132,7 +137,7 @@ def main():
     cv2.namedWindow(display_window_name, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(display_window_name, 800, 600)
     cv2.imshow(display_window_name, test_img)
-    cv2.waitKey(1)
+    cv2.waitKey(1000)  # Give it more time to render initially
     
     # Start display thread - which now only updates the existing window
     display_thread = threading.Thread(target=display_thread_function)
