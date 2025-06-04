@@ -81,7 +81,7 @@ def main():
 
     session = zenoh.open(config)
     
-    key = "carla/debug"
+    key = "carla/frame"
     subscriber = session.declare_subscriber(key, message_handler)
     
     print(f"Subscribed to '{key}'")
