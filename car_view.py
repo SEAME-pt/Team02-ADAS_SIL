@@ -105,13 +105,34 @@ def main():
     
     signal.signal(signal.SIGINT, signal_handler)
     
-    test_img = np.zeros((600, 800, 3), dtype=np.uint8)
-    cv2.putText(test_img, "Waiting for images...", (50, 300), 
+    test_frame = np.zeros((600, 800, 3), dtype=np.uint8)
+    cv2.putText(test_frame, "Waiting for camera feed...", (50, 300), 
                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    
+    test_debug = np.zeros((600, 800, 3), dtype=np.uint8)
+    cv2.putText(test_debug, "Waiting for debug view...", (50, 300), 
+               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+    
+    # Initialize latest images with placeholders
+    latest_frame = test_frame.copy()
+    latest_debug = test_debug.copy()
     
     cv2.namedWindow(display_window_name, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(display_window_name, 800, 600)
-    cv2.imshow(display_window_name, test_img)
+
+    max_height = max(latest_frame.shape[0], latest_debug.shape[0])
+    total_width = latest_frame.shape[1] + latest_debug.shape[1]
+    combined_img = np.zeros((max_height, total_width, 3), dtype=np.uint8)
+    
+    combined_img[0:latest_frame.shape[0], 0:latest_frame.shape[1]] = latest_frame
+    combined_img[0:latest_debug.shape[0], latest_frame.shape[1]:latest_frame.shape[1]+latest_debug.shape[1]] = latest_debug
+    
+    cv2.putText(combined_img, "Camera Feed", (10, 30), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+    cv2.putText(combined_img, "Debug View", (latest_frame.shape[1] + 10, 30), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+    
+    cv2.imshow(display_window_name, combined_img)
     cv2.waitKey(1)
     
     # Configuration for subscriber
