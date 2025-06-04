@@ -15,7 +15,7 @@ display_window_name = "CARLA Camera Feed"
 def frame_subscriber_handler(sample):
     """Process incoming Zenoh messages with camera frames"""
     try:
-        frame = sample.payload()
+        frame = sample.payload.as_bytes()
         
         print(f"Received data length: {len(frame)}")
         
