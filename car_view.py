@@ -7,12 +7,12 @@ import cv2
 import queue
 import signal
 
-# Create a global queue for images
-image_queue = queue.Queue(maxsize=15)  # Limit queue size to avoid memory issues
+frame_queue = queue.Queue(maxsize=15)
+debug_queue = queue.Queue(maxsize=15)
 display_active = True
 display_window_name = "CARLA Camera Feed"
 
-def message_handler(sample):
+def frame_subscriber_handler(sample):
     """Process incoming Zenoh messages with camera frames"""
     try:
         base64_str = sample.payload.to_string()
@@ -36,11 +36,51 @@ def message_handler(sample):
                 
             print(f"Successfully decoded image: {img.shape}")
             try:
-                image_queue.put(img, block=False)
+                frame_queue.put(img, block=False)
             except queue.Full:
                 try:
-                    image_queue.get_nowait()  # Remove oldest
-                    image_queue.put(img, block=False)  # Add new
+                    frame_queue.get_nowait()  # Remove oldest
+                    frame_queue.put(img, block=False)  # Add new
+                except:
+                    pass
+                
+        except Exception as e:
+            print(f"OpenCV error during imdecode: {e}")
+            
+    except Exception as e:
+        print(f"Error processing image: {e}")
+        import traceback
+        traceback.print_exc()
+
+def debug_subscriber_handler(sample):
+    """Process incoming Zenoh messages with camera frames"""
+    try:
+        base64_str = sample.payload.to_string()
+        
+        print(f"Received data length: {len(base64_str)}")
+        
+        # Decode from base64
+        try:
+            img_bytes = base64.b64decode(base64_str)
+        except Exception as e:
+            print(f"Base64 decoding failed: {e}")
+            return
+        
+        img_data = np.frombuffer(img_bytes, dtype=np.uint8)
+        
+        try:
+            img = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
+            if img is None:
+                print("cv2.imdecode returned None")
+                return
+                
+            print(f"Successfully decoded image: {img.shape}")
+            try:
+                debug_queue.put(img, block=False)
+            except queue.Full:
+                try:
+                    debug_queue.get_nowait()  # Remove oldest
+                    debug_queue.put(img, block=False)  # Add new
                 except:
                     pass
                 
@@ -81,8 +121,10 @@ def main():
 
     session = zenoh.open(config)
     
-    key = "carla/frame"
-    subscriber = session.declare_subscriber(key, message_handler)
+    frame_key = "carla/frame"
+    debug_key = "carla/debug"
+    subscriber_frame = session.declare_subscriber(frame_key, frame_subscriber_handler)
+    subscriber_debug = session.declare_subscriber(debug_key, debug_subscriber_handler)
     
     print(f"Subscribed to '{key}'")
     print("Waiting for images... (Press CTRL+C to exit)")
@@ -90,18 +132,43 @@ def main():
     try:
         print("Entering main display loop")
         while display_active:
-            # Check for new image in queue
+            update_needed = False
+            
             try:
-                img = image_queue.get(block=True, timeout=0.1)
-                
-                cv2.imshow(display_window_name, img)
-                
-                image_queue.task_done()
-            except queue.Empty:
+                if not frame_queue.empty():
+                    latest_frame = frame_queue.get(block=False)
+                    frame_queue.task_done()
+                    update_needed = True
+            except:
                 pass
             
-            key = cv2.waitKey(1)
+            try:
+                if not debug_queue.empty():
+                    latest_debug = debug_queue.get(block=False)
+                    debug_queue.task_done()
+                    update_needed = True
+            except:
+                pass
             
+            if update_needed:
+                max_height = max(latest_frame.shape[0], latest_debug.shape[0])
+                total_width = latest_frame.shape[1] + latest_debug.shape[1]
+                combined_img = np.zeros((max_height, total_width, 3), dtype=np.uint8)
+                
+                combined_img[0:latest_frame.shape[0], 0:latest_frame.shape[1]] = latest_frame
+                combined_img[0:latest_debug.shape[0], latest_frame.shape[1]:latest_frame.shape[1]+latest_debug.shape[1]] = latest_debug
+                
+                # Add labels
+                cv2.putText(combined_img, "Camera Feed", (10, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                cv2.putText(combined_img, "Debug View", (latest_frame.shape[1] + 10, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                
+                # Update the window
+                cv2.imshow(display_window_name, combined_img)
+            
+            # Process key events
+            key = cv2.waitKey(1)
             if key == ord('q'):
                 display_active = False
                 break
