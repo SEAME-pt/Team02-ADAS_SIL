@@ -11,32 +11,46 @@ def main():
     # This function will actually decode and display the received image
     def listener(sample):
         try:
-            # Now it's safe to convert to string
-            if isinstance(sample.payload, bytes):
-                base64_str = sample.payload.decode('utf-8')  # Convert bytes to string
-                print("bytes")
-            elif hasattr(sample.payload, 'to_string'):
-                base64_str = sample.payload.to_string()
-                print("string")
+            # Get payload as string or bytes
+            if hasattr(sample.payload, 'as_string'):
+                base64_str = sample.payload.as_string()
             else:
-                base64_str = str(sample.payload)
-                print("else")
+                base64_str = sample.payload.decode('utf-8')
+            
+            print(f"Received data of length: {len(base64_str)}")
+            print(f"First 20 chars: {base64_str[:20]}")
             
             # Decode from base64
             import base64
-            img_bytes = base64.b64decode(base64_str)
+            try:
+                img_bytes = base64.b64decode(base64_str)
+                print(f"Decoded to {len(img_bytes)} bytes of image data")
+            except Exception as e:
+                print(f"Base64 decoding failed: {e}")
+                return
             
             # Convert to numpy and decode image
+            import numpy as np
             img_data = np.frombuffer(img_bytes, dtype=np.uint8)
-            img = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
             
-            if img is not None:
-                cv2.imshow("CARLA Camera Feed", img)
+            # Try decoding with explicit error handling
+            import cv2
+            try:
+                img = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
+                if img is None:
+                    print("cv2.imdecode returned None")
+                    return
+                
+                print(f"Successfully decoded image: {img.shape}")
+                cv2.imshow("Received Image", img)
                 cv2.waitKey(1)
-            else:
-                print("Failed to decode image")
+            except Exception as e:
+                print(f"OpenCV error during imdecode: {e}")
+                
         except Exception as e:
             print(f"Error processing image: {e}")
+            import traceback
+            traceback.print_exc()
 
     config = zenoh.Config()
     
@@ -45,7 +59,7 @@ def main():
     
     # Enable peer discovery
     config.insert_json5("scouting/multicast/enabled", "true")
-    
+
     session = zenoh.open(config)
     key = 'carla/frame'
     sub = session.declare_subscriber(key, listener)
