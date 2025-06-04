@@ -94,53 +94,28 @@ def main():
     
     # Configuration for subscriber
     config = zenoh.Config()
-
-    # Connect to the publisher's IP address
     config.insert_json5(zenoh.config.CONNECT_KEY, '["tcp/100.117.122.95:7447"]')
-    
-    # Enable peer discovery
     config.insert_json5("scouting/multicast/enabled", "true")
-    print("Initializing Zenoh subscriber...")
+
     session = zenoh.open(config)
     
-    # Subscribe to the camera frame topic
     key = "carla/frame"
     subscriber = session.declare_subscriber(key, message_handler)
     
     print(f"Subscribed to '{key}'")
     print("Waiting for images... (Press CTRL+C to exit)")
     
-    # Main display loop - everything happens in the main thread
-    frame_counter = 0
     try:
         print("Entering main display loop")
         while display_active:
             # Check for new image in queue
             try:
-                # Non-blocking get with short timeout
                 img = image_queue.get(block=True, timeout=0.1)
                 
-                # Got a new image, display it
-                frame_counter += 1
-                print(f"Displaying frame #{frame_counter}")
+                cv2.imshow(display_window_name, img)
                 
-                # Add frame counter to image
-                display_img = img.copy()  # Make a copy to avoid modifying original
-                cv2.putText(display_img, f"Frame: {frame_counter}", (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                
-                # Display the image
-                cv2.imshow(display_window_name, display_img)
-                
-                # Save occasional frames to verify content
-                if frame_counter % 30 == 0:
-                    cv2.imwrite(f"frame_{frame_counter}.jpg", display_img)
-                    print(f"Saved frame_{frame_counter}.jpg")
-                
-                # Mark as done
                 image_queue.task_done()
             except queue.Empty:
-                # No new image, just update the window
                 pass
             
             # Process any pending UI events - CRITICAL for displaying images
@@ -157,7 +132,6 @@ def main():
     except KeyboardInterrupt:
         print("\nStopping by user request")
     finally:
-        # Clean shutdown
         display_active = False
         cv2.destroyAllWindows()
         session.close()
