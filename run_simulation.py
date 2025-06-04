@@ -94,7 +94,14 @@ def main():
     # Run your simulation
     client, world, vehicle, camera = setup_carla_environment()
 
-    session = zenoh.open(zenoh.Config())
+    config = zenoh.Config()
+    # Listen on ALL interfaces (not just specific IP)
+    config.insert_json5(zenoh.config.LISTEN_KEY, '["tcp/0.0.0.0:7447"]')
+    # Enable scouting for local discovery
+    config.insert_json5("scouting/multicast/enabled", "true")
+    
+    # Create session with network configuration
+    session = zenoh.open(config)
     key_frame = 'carla/frame'
     key_speed = 'carla/speed'
     pub_frame = session.declare_publisher(key_frame)

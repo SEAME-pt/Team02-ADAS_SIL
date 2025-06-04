@@ -39,7 +39,11 @@ def main():
             print(f"Error processing image: {e}")
 
     # Open Zenoh session
-    session = zenoh.open(zenoh.Config())
+    config = zenoh.Config()
+    # Specify the VPN IP address of the Jetson Nano
+    config["connect"] = "tcp/100.117.122.95:7447"
+    config.insert_json5("scouting/multicast/enabled", "true")
+    session = zenoh.open(config)
     key = 'carla/frame'
     sub = session.declare_subscriber(key, listener)
 
