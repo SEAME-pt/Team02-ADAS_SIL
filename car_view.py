@@ -38,11 +38,14 @@ def main():
         except Exception as e:
             print(f"Error processing image: {e}")
 
-    # Open Zenoh session
     config = zenoh.Config()
-    # Specify the VPN IP address of the Jetson Nano
-    config["connect"] = "tcp/100.117.122.95:7447"
+    
+    # Connect to the publisher's IP address
+    config.insert_json5(zenoh.config.CONNECT_KEY, '["tcp/100.117.122.95:7447"]')
+    
+    # Enable peer discovery
     config.insert_json5("scouting/multicast/enabled", "true")
+    
     session = zenoh.open(config)
     key = 'carla/frame'
     sub = session.declare_subscriber(key, listener)

@@ -95,9 +95,11 @@ def main():
     client, world, vehicle, camera = setup_carla_environment()
 
     config = zenoh.Config()
-    # Listen on ALL interfaces (not just specific IP)
+    
+    # Configure to listen on all interfaces
     config.insert_json5(zenoh.config.LISTEN_KEY, '["tcp/0.0.0.0:7447"]')
-    # Enable scouting for local discovery
+    
+    # Enable peer discovery
     config.insert_json5("scouting/multicast/enabled", "true")
     
     # Create session with network configuration
