@@ -12,7 +12,15 @@ def main():
     def listener(sample):
         try:
             # Now it's safe to convert to string
-            base64_str = sample.payload.to_string()
+            if isinstance(sample.payload, bytes):
+                base64_str = sample.payload.decode('utf-8')  # Convert bytes to string
+                print("bytes")
+            elif hasattr(sample.payload, 'to_string'):
+                base64_str = sample.payload.to_string()
+                print("string")
+            else:
+                base64_str = str(sample.payload)
+                print("else")
             
             # Decode from base64
             import base64
