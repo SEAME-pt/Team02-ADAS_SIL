@@ -19,17 +19,8 @@ def frame_subscriber_handler(sample):
         
         print(f"Received data length: {len(base64_str)}")
         
-        # Decode from base64
         try:
-            img_bytes = base64.b64decode(base64_str)
-        except Exception as e:
-            print(f"Base64 decoding failed: {e}")
-            return
-        
-        img_data = np.frombuffer(img_bytes, dtype=np.uint8)
-        
-        try:
-            img = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
+            img = cv2.imdecode(base64_str, cv2.IMREAD_COLOR)
             if img is None:
                 print("cv2.imdecode returned None")
                 return
@@ -59,17 +50,8 @@ def debug_subscriber_handler(sample):
         
         print(f"Received data length: {len(base64_str)}")
         
-        # Decode from base64
         try:
-            img_bytes = base64.b64decode(base64_str)
-        except Exception as e:
-            print(f"Base64 decoding failed: {e}")
-            return
-        
-        img_data = np.frombuffer(img_bytes, dtype=np.uint8)
-        
-        try:
-            img = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
+            img = cv2.imdecode(base64_str, cv2.IMREAD_COLOR)
             if img is None:
                 print("cv2.imdecode returned None")
                 return

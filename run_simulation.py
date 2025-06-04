@@ -183,11 +183,8 @@ def main():
         
         _, encoded_image = cv2.imencode('.jpg', array)
         
-        import base64
-        base64_data = base64.b64encode(encoded_image).decode('ascii')
-        
         speed_str = str(get_speed())
-        pub_frame.put(base64_data)
+        pub_frame.put(encoded_image)
         pub_speed.put(speed_str)
         message = f"Message send from publisher at {time.strftime('%H:%M:%S')}"
         print(message)
