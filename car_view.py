@@ -90,7 +90,7 @@ def main():
     cv2.namedWindow(display_window_name, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(display_window_name, 800, 600)
     cv2.imshow(display_window_name, test_img)
-    cv2.waitKey(100)  # Give it time to render initially
+    cv2.waitKey(1)
     
     # Configuration for subscriber
     config = zenoh.Config()
