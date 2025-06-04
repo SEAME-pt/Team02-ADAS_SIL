@@ -6,14 +6,11 @@ def main():
     # Configuration for publisher
     config = zenoh.Config()
     
-    # Configure to listen on all interfaces
-    config.insert_json5(zenoh.config.LISTEN_KEY, '["tcp/0.0.0.0:7447"]')
+    # # Configure to listen on all interfaces
+    # config.insert_json5(zenoh.config.LISTEN_KEY, '["tcp/0.0.0.0:7447"]')
     
-    # Enable peer discovery
-    config.insert_json5("scouting/multicast/enabled", "true")
-    
-    # # Optional: Enable debug logging
-    # config.insert_json5("logging/level", '"debug"')
+    # # Enable peer discovery
+    # config.insert_json5("scouting/multicast/enabled", "true")
     
     print("Initializing Zenoh publisher...")
     session = zenoh.open(config)

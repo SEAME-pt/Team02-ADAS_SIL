@@ -21,14 +21,11 @@ def main():
     # Configuration for subscriber
     config = zenoh.Config()
     
-    # Connect to the publisher's IP address
-    config.insert_json5(zenoh.config.CONNECT_KEY, '["tcp/100.117.122.95:7447"]')
+    # # Connect to the publisher's IP address
+    # config.insert_json5(zenoh.config.CONNECT_KEY, '["tcp/100.117.122.95:7447"]')
     
-    # Enable peer discovery
-    config.insert_json5("scouting/multicast/enabled", "true")
-    
-    # # Optional: Enable debug logging
-    # config.insert_json5("logging/level", '"debug"')
+    # # Enable peer discovery
+    # config.insert_json5("scouting/multicast/enabled", "true")
     
     print("Initializing Zenoh subscriber...")
     session = zenoh.open(config)
