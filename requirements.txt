@@ -1,0 +1,12 @@
+timm
+matplotlib
+pandas
+numpy
+opencv-python
+onnx
+onnxruntime
+carla
+pygame
+numpy
+pycocotools
+eclipse-zenoh
