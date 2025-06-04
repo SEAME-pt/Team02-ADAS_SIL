@@ -15,12 +15,14 @@ display_window_name = "CARLA Camera Feed"
 def frame_subscriber_handler(sample):
     """Process incoming Zenoh messages with camera frames"""
     try:
-        base64_str = sample.payload.to_string()
+        frame = sample.payload.to_string()
         
-        print(f"Received data length: {len(base64_str)}")
+        print(f"Received data length: {len(frame)}")
+        
+        img_data = np.frombuffer(frame, dtype=np.uint8)
         
         try:
-            img = cv2.imdecode(base64_str, cv2.IMREAD_COLOR)
+            img = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
             if img is None:
                 print("cv2.imdecode returned None")
                 return
@@ -46,12 +48,14 @@ def frame_subscriber_handler(sample):
 def debug_subscriber_handler(sample):
     """Process incoming Zenoh messages with camera frames"""
     try:
-        base64_str = sample.payload.to_string()
+        debug = sample.payload.to_string()
         
-        print(f"Received data length: {len(base64_str)}")
+        print(f"Received data length: {len(debug)}")
+        
+        img_data = np.frombuffer(debug, dtype=np.uint8)
         
         try:
-            img = cv2.imdecode(base64_str, cv2.IMREAD_COLOR)
+            img = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
             if img is None:
                 print("cv2.imdecode returned None")
                 return

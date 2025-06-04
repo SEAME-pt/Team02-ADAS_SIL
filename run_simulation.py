@@ -181,10 +181,13 @@ def main():
         array = np.reshape(array, (image.height, image.width, 4))
         array = array[:, :, :3]
         
-        _, encoded_image = cv2.imencode('.jpg', array)
+        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 85]
+        _, encoded_image = cv2.imencode('.jpg', array, encode_param)
         
+        image_bytes = encoded_image.tobytes()
+
         speed_str = str(get_speed())
-        pub_frame.put(encoded_image)
+        pub_frame.put(image_bytes)
         pub_speed.put(speed_str)
         message = f"Message send from publisher at {time.strftime('%H:%M:%S')}"
         print(message)
