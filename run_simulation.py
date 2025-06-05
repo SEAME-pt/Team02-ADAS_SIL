@@ -51,7 +51,7 @@ def setup_carla_environment(num_traffic_vehicles = 150):
     traffic_manager.global_percentage_speed_difference(20)
     traffic_manager.set_synchronous_mode(True)
 
-    main_spawn_index = 45
+    main_spawn_index = 20
     main_spawn_point = spawn_points[main_spawn_index]
     
     vehicle_bp = bp_library.find('vehicle.tesla.model3')
@@ -128,7 +128,7 @@ def main():
                 
             angle_degrees = float(control_steering_str)
 
-            normalized_steering = (angle_degrees - 90) / 90.0
+            normalized_steering = angle_degrees / 3.14
             
             current_control.steer = max(-1.0, min(1.0, normalized_steering))
                 
