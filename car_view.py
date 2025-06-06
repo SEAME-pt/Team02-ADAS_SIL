@@ -275,11 +275,15 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask):
     lane_mask_resized = cv2.resize(lane_mask, (reference_width, reference_height))
     
     obj_mask_resized = cv2.resize(obj_mask, (reference_width, reference_height))
+
+    lane_mask_overlayed = cv2.addWeighted(frame,0.4,lane_mask_resized,0.1,0)
+
+    obj_mask_overlayed = cv2.addWeighted(frame,0.4,obj_mask_resized,0.1,0)
     
     row1_height = reference_height
     row2_height = reference_height
-    col1_width = max(frame_resized.shape[1], lane_mask_resized.shape[1])
-    col2_width = max(ipm.shape[1], obj_mask_resized.shape[1])
+    col1_width = max(frame_resized.shape[1], lane_mask_overlayed.shape[1])
+    col2_width = max(ipm.shape[1], obj_mask_overlayed.shape[1])
     
     # Create a blank canvas large enough to hold all images
     total_height = row1_height + row2_height
@@ -294,12 +298,12 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask):
     combined_img[0:ipm.shape[0], col1_width:col1_width+ipm.shape[1]] = ipm
     
     # Bottom-left: lane_mask
-    combined_img[row1_height:row1_height+lane_mask_resized.shape[0], 
-                0:lane_mask_resized.shape[1]] = lane_mask_resized
+    combined_img[row1_height:row1_height+lane_mask_overlayed.shape[0], 
+                0:lane_mask_overlayed.shape[1]] = lane_mask_overlayed
     
     # Bottom-right: obj_mask
-    combined_img[row1_height:row1_height+obj_mask_resized.shape[0], 
-                col1_width:col1_width+obj_mask_resized.shape[1]] = obj_mask_resized
+    combined_img[row1_height:row1_height+obj_mask_overlayed.shape[0], 
+                col1_width:col1_width+obj_mask_overlayed.shape[1]] = obj_mask_overlayed
     
     # Add labels to each quadrant
     cv2.putText(combined_img, "Camera Feed", (10, 30), 
