@@ -272,9 +272,9 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask):
     
     reference_width = frame_resized.shape[1]
 
-    lane_mask_resized = cv2.resize(lane_mask, reference_width, reference_height)
+    lane_mask_resized = cv2.resize(lane_mask, (reference_width, reference_height))
     
-    obj_mask_resized = cv2.resize(obj_mask, reference_width, reference_height)
+    obj_mask_resized = cv2.resize(obj_mask, (reference_width, reference_height))
     
     row1_height = reference_height
     row2_height = reference_height
