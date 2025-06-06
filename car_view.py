@@ -260,35 +260,47 @@ def main():
         cv2.destroyAllWindows()
         session.close()
         print("Clean shutdown complete")
-
 def create_and_show_grid(frame, ipm, lane_mask, obj_mask):
-    """Create a 2x2 grid with original image sizes"""
+    """Create a 2x2 grid with images sized relative to IPM height"""
     
-    # Calculate row heights and column widths based on original sizes
-    row1_height = max(frame.shape[0], ipm.shape[0])
-    row2_height = max(lane_mask.shape[0], obj_mask.shape[0])
-    col1_width = max(frame.shape[1], lane_mask.shape[1])
-    col2_width = max(ipm.shape[1], obj_mask.shape[1])
+    # Use IPM height as reference
+    reference_height = ipm.shape[0]
+    
+    # Resize other images to match IPM height while preserving aspect ratio
+    frame_ratio = frame.shape[1] / frame.shape[0]
+    frame_resized = cv2.resize(frame, (int(reference_height * frame_ratio), reference_height))
+    
+    lane_mask_ratio = lane_mask.shape[1] / lane_mask.shape[0]
+    lane_mask_resized = cv2.resize(lane_mask, (int(reference_height * lane_mask_ratio), reference_height))
+    
+    obj_mask_ratio = obj_mask.shape[1] / obj_mask.shape[0]
+    obj_mask_resized = cv2.resize(obj_mask, (int(reference_height * obj_mask_ratio), reference_height))
+    
+    # Calculate row heights and column widths based on resized images
+    row1_height = reference_height
+    row2_height = reference_height
+    col1_width = max(frame_resized.shape[1], lane_mask_resized.shape[1])
+    col2_width = max(ipm.shape[1], obj_mask_resized.shape[1])
     
     # Create a blank canvas large enough to hold all images
     total_height = row1_height + row2_height
     total_width = col1_width + col2_width
     combined_img = np.zeros((total_height, total_width, 3), dtype=np.uint8)
     
-    # Place images at their respective positions (preserving original sizes)
+    # Place images at their respective positions
     # Top-left: frame
-    combined_img[0:frame.shape[0], 0:frame.shape[1]] = frame
+    combined_img[0:frame_resized.shape[0], 0:frame_resized.shape[1]] = frame_resized
     
-    # Top-right: ipm
+    # Top-right: ipm (original size - our reference)
     combined_img[0:ipm.shape[0], col1_width:col1_width+ipm.shape[1]] = ipm
     
     # Bottom-left: lane_mask
-    combined_img[row1_height:row1_height+lane_mask.shape[0], 
-                0:lane_mask.shape[1]] = lane_mask
+    combined_img[row1_height:row1_height+lane_mask_resized.shape[0], 
+                0:lane_mask_resized.shape[1]] = lane_mask_resized
     
     # Bottom-right: obj_mask
-    combined_img[row1_height:row1_height+obj_mask.shape[0], 
-                col1_width:col1_width+obj_mask.shape[1]] = obj_mask
+    combined_img[row1_height:row1_height+obj_mask_resized.shape[0], 
+                col1_width:col1_width+obj_mask_resized.shape[1]] = obj_mask_resized
     
     # Add labels to each quadrant
     cv2.putText(combined_img, "Camera Feed", (10, 30), 
@@ -300,7 +312,7 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask):
     cv2.putText(combined_img, "Object Mask", (col1_width + 10, row1_height + 30), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2)
     
-    # Resize the window to fit the combined image (but don't resize the content)
+    # Resize the window to fit the combined image
     cv2.resizeWindow(display_window_name, total_width, total_height)
     
     # Display the combined image
