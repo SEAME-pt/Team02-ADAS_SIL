@@ -34,10 +34,11 @@ def camera_setup(ego_vehicle, bp_library, world):
 
 def setup_carla_environment(num_traffic_vehicles = 150):
     client = carla.Client('127.0.0.1', 2000)
-    client.load_world("Town04")
+    client.load_world("Town06")
     client.set_timeout(60.0)
 
     world = client.get_world()
+    world.unload_map_layer(carla.MapLayer.Buildings)
 
     settings = world.get_settings()
     settings.synchronous_mode = True
