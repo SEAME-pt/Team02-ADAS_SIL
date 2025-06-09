@@ -34,7 +34,7 @@ def camera_setup(ego_vehicle, bp_library, world):
 
 def setup_carla_environment(num_traffic_vehicles = 150):
     client = carla.Client('127.0.0.1', 2000)
-    client.load_world("Town06")
+    client.load_world("Town04")
     client.set_timeout(60.0)
 
     world = client.get_world()
@@ -52,7 +52,7 @@ def setup_carla_environment(num_traffic_vehicles = 150):
     traffic_manager.global_percentage_speed_difference(20)
     traffic_manager.set_synchronous_mode(True)
 
-    main_spawn_index = 45
+    main_spawn_index = 100
     main_spawn_point = spawn_points[main_spawn_index]
     
     vehicle_bp = bp_library.find('vehicle.tesla.model3')
@@ -182,7 +182,7 @@ def main():
         array = np.reshape(array, (image.height, image.width, 4))
         array = array[:, :, :3]
         
-        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 30]
+        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
         _, encoded_image = cv2.imencode('.jpg', array, encode_param)
         
         image_bytes = encoded_image.tobytes()
