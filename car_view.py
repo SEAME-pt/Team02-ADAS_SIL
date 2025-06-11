@@ -260,63 +260,80 @@ def main():
         cv2.destroyAllWindows()
         session.close()
         print("Clean shutdown complete")
+        
 def create_and_show_grid(frame, ipm, lane_mask, obj_mask):
-    """Create a 2x2 grid with images sized relative to IPM height"""
+    """Create a 2x2 grid with images sized to a fixed output resolution"""
     
-    # Use IPM height as reference
-    reference_height = ipm.shape[0]
+    # Define a fixed output size
+    FIXED_WIDTH = 1280  # Total width of combined view
+    FIXED_HEIGHT = 720  # Total height of combined view
     
-    # Resize other images to match IPM height while preserving aspect ratio
-    frame_ratio = frame.shape[1] / frame.shape[0]
-    frame_resized = cv2.resize(frame, (int(reference_height * frame_ratio), reference_height))
+    # Calculate cell dimensions
+    cell_width = FIXED_WIDTH // 2
+    cell_height = FIXED_HEIGHT // 2
     
-    reference_width = frame_resized.shape[1]
-
-    lane_mask_resized = cv2.resize(lane_mask, (reference_width, reference_height))
+    # Resize frame and masks to fit their respective cells
+    frame_resized = cv2.resize(frame, (cell_width, cell_height))
+    lane_mask_resized = cv2.resize(lane_mask, (cell_width, cell_height))
+    obj_mask_resized = cv2.resize(obj_mask, (cell_width, cell_height))
     
-    obj_mask_resized = cv2.resize(obj_mask, (reference_width, reference_height))
-
-    lane_mask_overlayed = cv2.addWeighted(frame,0.7,lane_mask_resized,0.3,0)
-
-    obj_mask_overlayed = cv2.addWeighted(frame,0.7,obj_mask_resized,0.3,0)
+    # For IPM, preserve aspect ratio and pad with black
+    ipm_h, ipm_w = ipm.shape[:2]
+    ipm_aspect = ipm_w / ipm_h
     
-    row1_height = reference_height
-    row2_height = reference_height
-    col1_width = max(frame_resized.shape[1], lane_mask_overlayed.shape[1])
-    col2_width = max(ipm.shape[1], obj_mask_overlayed.shape[1])
+    # Calculate the largest size that fits in the cell while preserving aspect ratio
+    if ipm_aspect > (cell_width / cell_height):  # wider than tall
+        resize_width = cell_width
+        resize_height = int(resize_width / ipm_aspect)
+    else:  # taller than wide
+        resize_height = cell_height
+        resize_width = int(resize_height * ipm_aspect)
     
-    # Create a blank canvas large enough to hold all images
-    total_height = row1_height + row2_height
-    total_width = col1_width + col2_width
-    combined_img = np.zeros((total_height, total_width, 3), dtype=np.uint8)
+    # Resize IPM while maintaining aspect ratio
+    ipm_resized = cv2.resize(ipm, (resize_width, resize_height))
     
-    # Place images at their respective positions
+    # Create a black cell for IPM placement
+    ipm_cell = np.zeros((cell_height, cell_width, 3), dtype=np.uint8)
+    
+    # Calculate position to center the IPM in its cell
+    y_offset = (cell_height - resize_height) // 2
+    x_offset = (cell_width - resize_width) // 2
+    
+    # Place IPM in the black cell
+    ipm_cell[y_offset:y_offset+resize_height, x_offset:x_offset+resize_width] = ipm_resized
+    
+    # Create overlays with consistent sizing
+    lane_mask_overlayed = cv2.addWeighted(frame_resized, 0.7, lane_mask_resized, 0.3, 0)
+    obj_mask_overlayed = cv2.addWeighted(frame_resized, 0.7, obj_mask_resized, 0.3, 0)
+    
+    # Create a fixed-size canvas
+    combined_img = np.zeros((FIXED_HEIGHT, FIXED_WIDTH, 3), dtype=np.uint8)
+    
+    # Place each image in its quadrant with exact dimensions
     # Top-left: frame
-    combined_img[0:frame_resized.shape[0], 0:frame_resized.shape[1]] = frame_resized
+    combined_img[0:cell_height, 0:cell_width] = frame_resized
     
-    # Top-right: ipm (original size - our reference)
-    combined_img[0:ipm.shape[0], col1_width:col1_width+ipm.shape[1]] = ipm
+    # Top-right: ipm (preserves aspect ratio)
+    combined_img[0:cell_height, cell_width:FIXED_WIDTH] = ipm_cell
     
-    # Bottom-left: lane_mask
-    combined_img[row1_height:row1_height+lane_mask_overlayed.shape[0], 
-                0:lane_mask_overlayed.shape[1]] = lane_mask_overlayed
+    # Bottom-left: lane_mask overlay
+    combined_img[cell_height:FIXED_HEIGHT, 0:cell_width] = lane_mask_overlayed
     
-    # Bottom-right: obj_mask
-    combined_img[row1_height:row1_height+obj_mask_overlayed.shape[0], 
-                col1_width:col1_width+obj_mask_overlayed.shape[1]] = obj_mask_overlayed
+    # Bottom-right: obj_mask overlay
+    combined_img[cell_height:FIXED_HEIGHT, cell_width:FIXED_WIDTH] = obj_mask_overlayed
     
     # Add labels to each quadrant
     cv2.putText(combined_img, "Camera Feed", (10, 30), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-    cv2.putText(combined_img, "IPM View", (col1_width + 10, 30), 
+    cv2.putText(combined_img, "IPM View", (cell_width + 10, 30), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-    cv2.putText(combined_img, "Lane Mask", (10, row1_height + 30), 
+    cv2.putText(combined_img, "Lane Mask", (10, cell_height + 30), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
-    cv2.putText(combined_img, "Object Mask", (col1_width + 10, row1_height + 30), 
+    cv2.putText(combined_img, "Object Mask", (cell_width + 10, cell_height + 30), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2)
     
-    # Resize the window to fit the combined image
-    cv2.resizeWindow(display_window_name, total_width, total_height)
+    # Set the window to fixed size
+    cv2.resizeWindow(display_window_name, FIXED_WIDTH, FIXED_HEIGHT)
     
     # Display the combined image
     cv2.imshow(display_window_name, combined_img)
