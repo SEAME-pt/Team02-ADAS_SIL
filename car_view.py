@@ -190,7 +190,6 @@ def main():
     config = zenoh.Config()
     # config.insert_json5("connect/endpoints", '["udp/100.119.72.83:7447", "udp/100.119.72.83:7450"]')
     config.insert_json5("connect/endpoints", '["udp/100.117.122.95:7447", "udp/100.117.122.95:7450"]')
-    config.insert_json5("scouting/multicast/enabled", "true")
 
     session = zenoh.open(config)
     
