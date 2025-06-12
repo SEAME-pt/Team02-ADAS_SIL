@@ -20,8 +20,8 @@ import carla
 
 def camera_setup(ego_vehicle, bp_library, world):
     camera_bp = bp_library.find('sensor.camera.rgb')
-    camera_bp.set_attribute('image_size_x', '800')
-    camera_bp.set_attribute('image_size_y', '600')
+    camera_bp.set_attribute('image_size_x', '1024')
+    camera_bp.set_attribute('image_size_y', '512')
     camera_bp.set_attribute('fov', '105')
 
     camera_init_trans = carla.Transform(
@@ -52,7 +52,7 @@ def setup_carla_environment(num_traffic_vehicles = 150):
     traffic_manager.global_percentage_speed_difference(20)
     traffic_manager.set_synchronous_mode(True)
 
-    main_spawn_index = 100
+    main_spawn_index = 80
     main_spawn_point = spawn_points[main_spawn_index]
     
     vehicle_bp = bp_library.find('vehicle.tesla.model3')
