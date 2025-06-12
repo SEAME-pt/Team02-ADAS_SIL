@@ -91,8 +91,8 @@ def main():
     tm.ignore_lights_percentage(vehicle, 100)
 
     # Initialize detector with display reference
-    # detector = LaneDetection(display)
-    detector = ObjectDetection(display)
+    detector = LaneDetection(display)
+    # detector = ObjectDetection(display)
     detector.load_model()
     
     # Set up camera listener with the callback method

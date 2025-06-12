@@ -30,7 +30,7 @@ class LaneDetection:
             self.device = torch.device("cpu")
             print("Using CPU")
 
-        self.input_size = (258, 126)
+        self.input_size = (1024, 512)
         self.ort_session = None
 
         # Define normalizer with ImageNet stats
@@ -46,7 +46,7 @@ class LaneDetection:
         ])
 
     def load_model(self):            
-        model_path = "/home/luis_t2/SEAME/Team02-Course/MachineLearning/LaneDetection/Models/onnx/lane_Yolo2_epoch_45.onnx"
+        model_path = "/home/luis_t2/SEAME/Team02-Course/MachineLearning/LaneDetection/Models/onnx/lane_Yolo_Carla3_epoch_3.onnx"
         # Set compute options based on device
         providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] if self.device.type == 'cuda' else ['CPUExecutionProvider']
         self.ort_session = ort.InferenceSession(model_path, providers=providers)
@@ -58,7 +58,7 @@ class LaneDetection:
         original_img = self.convert_Carla_image(image)
         
         # # Process image and run inference using the new preprocessing
-        input_tensor, processed_img = self.preprocess_image(original_img)
+        input_tensor, processed_img = self.preprocess_image(original_img, target_size=self.input_size)
         
         # ONNX inference
         input_name = self.ort_session.get_inputs()[0].name
