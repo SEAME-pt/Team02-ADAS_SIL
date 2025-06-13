@@ -20,8 +20,8 @@ import carla
 
 def camera_setup(ego_vehicle, bp_library, world):
     camera_bp = bp_library.find('sensor.camera.rgb')
-    camera_bp.set_attribute('image_size_x', '1024')
-    camera_bp.set_attribute('image_size_y', '512')
+    camera_bp.set_attribute('image_size_x', '800')
+    camera_bp.set_attribute('image_size_y', '600')
     camera_bp.set_attribute('fov', '105')
 
     camera_init_trans = carla.Transform(
@@ -179,7 +179,7 @@ def main():
         array = np.reshape(array, (image.height, image.width, 4))
         array = array[:, :, :3]
         
-        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
+        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 85]
         _, encoded_image = cv2.imencode('.jpg', array, encode_param)
         
         image_bytes = encoded_image.tobytes()

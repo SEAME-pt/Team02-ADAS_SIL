@@ -49,7 +49,7 @@ class ObjectDetection:
         ])
 
     def load_model(self):            
-        model_path = "/home/luis_t2/SEAME/Team02-Course/MachineLearning/ObjectDetection/Models/onnx/obj_YOLO_1_epoch_198.onnx"
+        model_path = "/home/luis_t2/SEAME/Team02-Course/MachineLearning/ObjectDetection/Models/onnx/obj_YOLO_Carla1_epoch_75.onnx"
         # Set compute options based on device
         providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] if self.device.type == 'cuda' else ['CPUExecutionProvider']
         self.ort_session = ort.InferenceSession(model_path, providers=providers)
@@ -103,7 +103,7 @@ class ObjectDetection:
             except (queue.Empty, queue.Full):
                 pass
 
-    def preprocess_image(self, image, target_size=(256, 128)):
+    def preprocess_image(self, image, target_size=(1024, 512)):
         # Resize image
         img = cv2.resize(image, target_size)
         
