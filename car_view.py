@@ -168,7 +168,7 @@ def main():
     cv2.putText(test_ipm, "Waiting for IPM view...", (50, 300), 
                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-    test_lane_mask = np.zeros((512, 1024, 3), dtype=np.uint8)
+    test_lane_mask = np.zeros((600, 800, 3), dtype=np.uint8)
     cv2.putText(test_lane_mask, "Waiting for lane mask feed...", (50, 300), 
                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
     
@@ -264,8 +264,8 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask):
     """Create a 2x2 grid with images sized to a fixed output resolution"""
     
     # Define a fixed output size
-    FIXED_WIDTH = 1920  # Total width of combined view
-    FIXED_HEIGHT = 1080  # Total height of combined view
+    FIXED_WIDTH = 1280  # Total width of combined view
+    FIXED_HEIGHT = 960  # Total height of combined view
     
     # Calculate cell dimensions
     cell_width = FIXED_WIDTH // 2
