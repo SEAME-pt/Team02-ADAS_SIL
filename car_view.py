@@ -189,6 +189,19 @@ def signal_handler(sig, frame):
     cv2.destroyAllWindows()
     sys.exit(0)
 
+def draw_class_bboxes(mask, class_indices, color_map):
+    """Draw bounding boxes for each class index in class_indices on the mask."""
+    mask_out = mask.copy()
+    for class_idx in class_indices:
+        # Create binary mask for this class
+        binary = np.all(mask == color_map[class_idx], axis=-1).astype(np.uint8) * 255
+        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            if w > 5 and h > 5:  # Filter out tiny boxes
+                cv2.rectangle(mask_out, (x, y), (x + w, y + h), (0, 0, 255), 2)
+    return mask_out
+
 def main():
     global display_active
     
@@ -352,7 +365,19 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask, traffic_mask):
     
     # Create overlays with consistent sizing
     lane_mask_overlayed = cv2.addWeighted(frame_resized, 0.7, lane_mask_resized, 0.3, 0)
-    obj_mask_overlayed = cv2.addWeighted(frame_resized, 0.7, obj_mask_resized, 0.3, 0)
+
+    color_map = {
+        2: [255, 0, 0],       # Car
+        3: [250, 170, 30],    # Traffic Light
+        4: [220, 220, 0],     # Traffic Sign
+        5: [220, 20, 60],     # Person
+        6: [244, 35, 232],    # Sidewalks
+        7: [0, 0, 70],        # Motorcycle
+    }
+
+    obj_mask_with_boxes = draw_class_bboxes(obj_mask_resized, [4], color_map)
+
+    obj_mask_overlayed = cv2.addWeighted(frame_resized, 0.7, obj_mask_with_boxes, 0.3, 0)
     
     # Create a fixed-size canvas
     combined_img = np.zeros((FIXED_HEIGHT, FIXED_WIDTH, 3), dtype=np.uint8)
