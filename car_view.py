@@ -313,11 +313,11 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask, traffic_mask):
     """Create a 2x2 grid with images sized to a fixed output resolution"""
     
     # Define a fixed output size
-    FIXED_WIDTH = 1280  # Total width of combined view
-    FIXED_HEIGHT = 960  # Total height of combined view
+    FIXED_WIDTH = 1920  # 3 columns
+    FIXED_HEIGHT = 960  # 2 rows
     
     # Calculate cell dimensions
-    cell_width = FIXED_WIDTH // 2
+    cell_width = FIXED_WIDTH // 3
     cell_height = FIXED_HEIGHT // 2
     
     # Resize frame and masks to fit their respective cells
@@ -357,17 +357,13 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask, traffic_mask):
     # Create a fixed-size canvas
     combined_img = np.zeros((FIXED_HEIGHT, FIXED_WIDTH, 3), dtype=np.uint8)
     
-    # Place each image in its quadrant with exact dimensions
-    # Top-left: frame
+    # Top row
     combined_img[0:cell_height, 0:cell_width] = frame_resized
-    
-    # Top-right: ipm (preserves aspect ratio)
-    combined_img[0:cell_height, cell_width:FIXED_WIDTH] = ipm_cell
-    
-    combined_img[cell_height:2*cell_height, 0:cell_width] = lane_mask_overlayed
-    combined_img[cell_height:2*cell_height, cell_width:FIXED_WIDTH] = obj_mask_overlayed
-
-    combined_img[2*cell_height:FIXED_HEIGHT, 0:cell_width] = traffic_mask_resized
+    combined_img[0:cell_height, cell_width:2*cell_width] = ipm_cell
+    combined_img[0:cell_height, 2*cell_width:3*cell_width] = lane_mask_overlayed
+    # Bottom row
+    combined_img[cell_height:2*cell_height, 0:cell_width] = obj_mask_overlayed
+    combined_img[cell_height:2*cell_height, cell_width:2*cell_width] = traffic_mask_resized
     
     # Add labels to each quadrant
     cv2.putText(combined_img, "Camera Feed", (10, 30), 
