@@ -366,15 +366,15 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask, traffic_mask):
     combined_img[cell_height:2*cell_height, cell_width:2*cell_width] = traffic_mask_resized
     
     # Add labels to each quadrant
-    cv2.putText(combined_img, "Camera Feed", (10, 30), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-    cv2.putText(combined_img, "IPM View", (cell_width + 10, 30), 
+    cv2.putText(combined_img, "Camera Feed", (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+    cv2.putText(combined_img, "IPM View", (cell_width + 10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-    cv2.putText(combined_img, "Lane Mask", (10, cell_height + 30), 
+    cv2.putText(combined_img, "Lane Mask", (2 * cell_width + 10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
-    cv2.putText(combined_img, "Object Mask", (cell_width + 10, cell_height + 30), 
+    cv2.putText(combined_img, "Object Mask", (10, cell_height + 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2)
-    cv2.putText(combined_img, "Traffic Mask", (10, 2*cell_height + 30),
+    cv2.putText(combined_img, "Traffic Mask", (cell_width + 10, cell_height + 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
     
     # Set the window to fixed size
