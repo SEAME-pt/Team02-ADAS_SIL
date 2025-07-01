@@ -11,6 +11,7 @@ frame_queue = queue.Queue(maxsize=5)
 ipm_queue = queue.Queue(maxsize=5)
 lane_queue = queue.Queue(maxsize=5)
 obj_queue = queue.Queue(maxsize=5)
+traffic_queue = queue.Queue(maxsize=5)
 
 display_active = True
 display_window_name = "CARLA Camera Feed"
@@ -147,6 +148,39 @@ def obj_mask_subscriber_handler(sample):
         import traceback
         traceback.print_exc()
 
+def traffic_mask_subscriber_handler(sample):
+    """Process incoming Zenoh messages with camera frames"""
+    try:
+        debug = sample.payload.to_bytes()
+        
+        print(f"Received data length: {len(debug)}")
+        
+        img_data = np.frombuffer(debug, dtype=np.uint8)
+        
+        try:
+            img = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
+            if img is None:
+                print("cv2.imdecode returned None")
+                return
+                
+            print(f"Successfully decoded image: {img.shape}")
+            try:
+                traffic_queue.put(img, block=False)
+            except queue.Full:
+                try:
+                    traffic_queue.get_nowait()  # Remove oldest
+                    traffic_queue.put(img, block=False)  # Add new
+                except:
+                    pass
+                
+        except Exception as e:
+            print(f"OpenCV error during imdecode: {e}")
+            
+    except Exception as e:
+        print(f"Error processing image: {e}")
+        import traceback
+        traceback.print_exc()
+
 def signal_handler(sig, frame):
     """Handle clean shutdown on CTRL+C"""
     global display_active
@@ -176,15 +210,20 @@ def main():
     cv2.putText(test_obj_mask, "Waiting for obj mask view...", (50, 300), 
                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 255), 2)
     
+    test_traffic_mask = np.zeros((600, 800, 3), dtype=np.uint8)
+    cv2.putText(test_traffic_mask, "Waiting for traffic mask view...", (50, 300), 
+               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+    
     # Initialize latest images with placeholders
     latest_frame = test_frame.copy()
     latest_ipm = test_ipm.copy()
     latest_lane_mask = test_lane_mask.copy()
     latest_obj_mask = test_obj_mask.copy()
+    latest_traffic_mask = test_traffic_mask.copy()
     
     cv2.namedWindow(display_window_name, cv2.WINDOW_NORMAL)
 
-    create_and_show_grid(latest_frame, latest_ipm, latest_lane_mask, latest_obj_mask)
+    create_and_show_grid(latest_frame, latest_ipm, latest_lane_mask, latest_obj_mask, latest_traffic_mask)
     
     # Configuration for subscriber
     config = zenoh.Config()
@@ -197,10 +236,12 @@ def main():
     original_frame_key = "Vehicle/1/Frame"
     lane_mask_key = "Vehicle/1/LaneMask"
     obj_mask_key = "Vehicle/1/ObjMask"
+    traffic_mask_key = "Vehicle/1/TrafficMask"
     subscriber_frame = session.declare_subscriber(original_frame_key, frame_subscriber_handler)
     subscriber_ipm = session.declare_subscriber(ipm_frame_key, ipm_subscriber_handler)
     subscriber_lane_mask = session.declare_subscriber(lane_mask_key, lane_mask_subscriber_handler)
     subscriber_obj_mask = session.declare_subscriber(obj_mask_key, obj_mask_subscriber_handler)
+    subscriber_traffic_mask = session.declare_subscriber(traffic_mask_key, traffic_mask_subscriber_handler)
     
     print("Waiting for images... (Press CTRL+C to exit)")
     
@@ -240,9 +281,17 @@ def main():
                     update_needed = True
             except:
                 pass
+
+            try:
+                if not traffic_queue.empty():
+                    latest_traffic_mask = traffic_queue.get(block=False)
+                    traffic_queue.task_done()
+                    update_needed = True
+            except:
+                pass
             
             if update_needed:
-                create_and_show_grid(latest_frame, latest_ipm, latest_lane_mask, latest_obj_mask)
+                create_and_show_grid(latest_frame, latest_ipm, latest_lane_mask, latest_obj_mask, latest_traffic_mask)
             
             # Process key events
             key = cv2.waitKey(1)
@@ -260,7 +309,7 @@ def main():
         session.close()
         print("Clean shutdown complete")
         
-def create_and_show_grid(frame, ipm, lane_mask, obj_mask):
+def create_and_show_grid(frame, ipm, lane_mask, obj_mask, traffic_mask):
     """Create a 2x2 grid with images sized to a fixed output resolution"""
     
     # Define a fixed output size
@@ -275,12 +324,12 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask):
     frame_resized = cv2.resize(frame, (cell_width, cell_height))
     lane_mask_resized = cv2.resize(lane_mask, (cell_width, cell_height))
     obj_mask_resized = cv2.resize(obj_mask, (cell_width, cell_height))
+    traffic_mask_resized = cv2.resize(traffic_mask, (cell_width, cell_height))
     
     # For IPM, preserve aspect ratio and pad with black
     ipm_h, ipm_w = ipm.shape[:2]
     ipm_aspect = ipm_w / ipm_h
     
-    # Calculate the largest size that fits in the cell while preserving aspect ratio
     if ipm_aspect > (cell_width / cell_height):  # wider than tall
         resize_width = cell_width
         resize_height = int(resize_width / ipm_aspect)
@@ -315,11 +364,10 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask):
     # Top-right: ipm (preserves aspect ratio)
     combined_img[0:cell_height, cell_width:FIXED_WIDTH] = ipm_cell
     
-    # Bottom-left: lane_mask overlay
-    combined_img[cell_height:FIXED_HEIGHT, 0:cell_width] = lane_mask_overlayed
-    
-    # Bottom-right: obj_mask overlay
-    combined_img[cell_height:FIXED_HEIGHT, cell_width:FIXED_WIDTH] = obj_mask_overlayed
+    combined_img[cell_height:2*cell_height, 0:cell_width] = lane_mask_overlayed
+    combined_img[cell_height:2*cell_height, cell_width:FIXED_WIDTH] = obj_mask_overlayed
+
+    combined_img[2*cell_height:FIXED_HEIGHT, 0:cell_width] = traffic_mask_resized
     
     # Add labels to each quadrant
     cv2.putText(combined_img, "Camera Feed", (10, 30), 
@@ -330,6 +378,8 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask):
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
     cv2.putText(combined_img, "Object Mask", (cell_width + 10, cell_height + 30), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2)
+    cv2.putText(combined_img, "Traffic Mask", (10, 2*cell_height + 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
     
     # Set the window to fixed size
     cv2.resizeWindow(display_window_name, FIXED_WIDTH, FIXED_HEIGHT)
