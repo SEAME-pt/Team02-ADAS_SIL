@@ -189,17 +189,23 @@ def signal_handler(sig, frame):
     cv2.destroyAllWindows()
     sys.exit(0)
 
-def draw_class_bboxes(mask, class_indices, color_map):
-    """Draw bounding boxes for each class index in class_indices on the mask."""
+def draw_class_bboxes(mask, class_indices, color_map, margin=10):
+    """Draw bounding boxes for each class index in class_indices on the mask, with a margin."""
     mask_out = mask.copy()
+    h, w = mask.shape[:2]
     for class_idx in class_indices:
         # Create binary mask for this class
         binary = np.all(mask == color_map[class_idx], axis=-1).astype(np.uint8) * 255
         contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for cnt in contours:
-            x, y, w, h = cv2.boundingRect(cnt)
-            if w > 5 and h > 5:  # Filter out tiny boxes
-                cv2.rectangle(mask_out, (x, y), (x + w, y + h), (0, 0, 255), 2)
+            x, y, box_w, box_h = cv2.boundingRect(cnt)
+            if box_w > 5 and box_h > 5:  # Filter out tiny boxes
+                # Expand the bounding box by margin, but keep within image bounds
+                x1 = max(x - margin, 0)
+                y1 = max(y - margin, 0)
+                x2 = min(x + box_w + margin, w - 1)
+                y2 = min(y + box_h + margin, h - 1)
+                cv2.rectangle(mask_out, (x1, y1), (x2, y2), (0, 0, 255), 2)
     return mask_out
 
 def main():
@@ -375,7 +381,7 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask, traffic_mask):
         7: [0, 0, 70],        # Motorcycle
     }
 
-    obj_mask_with_boxes = draw_class_bboxes(obj_mask_resized, [4], color_map)
+    obj_mask_with_boxes = draw_class_bboxes(obj_mask_resized, [4], color_map, margin=15)
 
     obj_mask_overlayed = cv2.addWeighted(frame_resized, 0.7, obj_mask_with_boxes, 0.3, 0)
     
