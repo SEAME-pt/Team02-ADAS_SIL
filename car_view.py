@@ -445,7 +445,7 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask, traffic_mask, trafficL
     # Bottom row
     combined_img[cell_height:2*cell_height, 0:cell_width] = obj_mask_overlayed
     combined_img[cell_height:2*cell_height, cell_width:2*cell_width] = traffic_mask_resized
-    combined_img[cell_height:2*cell_height, cell_width:3*cell_width] = trafficLight_mask_resized
+    combined_img[cell_height:2*cell_height, 2*cell_width:3*cell_width] = trafficLight_mask_resized
     
     # Add labels to each quadrant
     cv2.putText(combined_img, "Camera Feed", (10, 30),
