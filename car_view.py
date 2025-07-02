@@ -268,7 +268,7 @@ def main():
                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
     
     test_trafficLight_mask = np.zeros((600, 800, 3), dtype=np.uint8)
-    cv2.putText(test_traffic_mask, "Waiting for traffic light mask view...", (50, 300), 
+    cv2.putText(test_trafficLight_mask, "Waiting for traffic light mask view...", (50, 300), 
                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
     
     # Initialize latest images with placeholders
