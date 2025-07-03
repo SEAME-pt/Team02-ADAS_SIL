@@ -344,7 +344,7 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask, traffic_mask):
     lane_mask_resized = cv2.resize(lane_mask, (cell_width, cell_height))
     obj_mask_resized = cv2.resize(obj_mask, (cell_width, cell_height))
     traffic_mask_resized = cv2.resize(traffic_mask, (cell_width, cell_height))
-    traffic_mask_resized = cv2.cvtColor(traffic_mask_resized, cv2.RGB2BGR)
+    traffic_mask_resized = cv2.cvtColor(traffic_mask_resized, cv2.COLOR_BGR2RGB)
     
     # For IPM, preserve aspect ratio and pad with black
     ipm_h, ipm_w = ipm.shape[:2]
