@@ -247,7 +247,7 @@ def main():
     # Configuration for subscriber
     config = zenoh.Config()
     config.insert_json5("connect/endpoints", '["udp/100.119.72.83:7458"]')
-    config.insert_json("listen/endpoints", '["udp/100.66.117.8:7457"]')
+    config.insert_json5("listen/endpoints", '["udp/100.66.117.8:7457"]')
     # config.insert_json5("connect/endpoints", '["udp/100.117.122.95:7447", "udp/100.117.122.95:7450"]')
 
     session = zenoh.open(config)
