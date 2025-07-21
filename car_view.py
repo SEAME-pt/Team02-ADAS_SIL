@@ -221,6 +221,10 @@ def main():
     cv2.putText(test_ipm, "Waiting for IPM view...", (50, 300), 
                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
+    test_traffic_mask = np.zeros((600, 800, 3), dtype=np.uint8)
+    cv2.putText(test_traffic_mask, "Waiting for traffic sign mask view...", (50, 300), 
+               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+    
     test_lane_mask = np.zeros((600, 800, 3), dtype=np.uint8)
     cv2.putText(test_lane_mask, "Waiting for lane mask feed...", (50, 300), 
                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
@@ -229,9 +233,6 @@ def main():
     cv2.putText(test_obj_mask, "Waiting for obj mask view...", (50, 300), 
                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 255), 2)
     
-    test_traffic_mask = np.zeros((600, 800, 3), dtype=np.uint8)
-    cv2.putText(test_traffic_mask, "Waiting for traffic sign mask view...", (50, 300), 
-               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
     
     # Initialize latest images with placeholders
     latest_frame = test_frame.copy()
@@ -393,21 +394,21 @@ def create_and_show_grid(frame, ipm, lane_mask, obj_mask, traffic_mask):
     # Top row
     combined_img[0:cell_height, 0:cell_width] = frame_resized
     combined_img[0:cell_height, cell_width:2*cell_width] = ipm_cell
-    combined_img[0:cell_height, 2*cell_width:3*cell_width] = lane_mask_overlayed
+    combined_img[0:cell_height, 2*cell_width:3*cell_width] = traffic_mask_resized
     # Bottom row
-    combined_img[cell_height:2*cell_height, 0:cell_width] = obj_mask_overlayed
-    combined_img[cell_height:2*cell_height, cell_width:2*cell_width] = traffic_mask_resized
+    combined_img[cell_height:2*cell_height, 0:cell_width] = lane_mask_overlayed
+    combined_img[cell_height:2*cell_height, cell_width:2*cell_width] = obj_mask_overlayed
     
     # Add labels to each quadrant
     cv2.putText(combined_img, "Camera Feed", (10, 30),
             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
     cv2.putText(combined_img, "IPM View", (cell_width + 10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-    cv2.putText(combined_img, "Lane Mask", (2 * cell_width + 10, 30),
+    cv2.putText(combined_img, "Traffic Sign Mask", (2 * cell_width + 10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
-    cv2.putText(combined_img, "Object Mask", (10, cell_height + 30),
+    cv2.putText(combined_img, "Lane Mask", (10, cell_height + 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2)
-    cv2.putText(combined_img, "Traffic Sign Mask", (cell_width + 10, cell_height + 30),
+    cv2.putText(combined_img, "Object Mask", (cell_width + 10, cell_height + 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
     
     # Set the window to fixed size
