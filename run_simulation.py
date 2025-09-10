@@ -33,7 +33,7 @@ def camera_setup(ego_vehicle, bp_library, world):
     return camera
 
 def setup_carla_environment(num_traffic_vehicles = 150):
-    client = carla.Client('127.0.0.1', 2000)
+    client = carla.Client('100.117.122.95', 2000)
     client.load_world("Town04")
     client.set_timeout(60.0)
 
