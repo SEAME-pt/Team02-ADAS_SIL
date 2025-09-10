@@ -32,7 +32,7 @@ def camera_setup(ego_vehicle, bp_library, world):
     camera = world.spawn_actor(camera_bp, camera_init_trans, attach_to=ego_vehicle)
     return camera
 
-def setup_carla_environment(num_traffic_vehicles = 150):
+def setup_carla_environment(num_traffic_vehicles = 10):
     client = carla.Client('100.117.122.95', 2000)
     client.load_world("Town04")
     client.set_timeout(60.0)
